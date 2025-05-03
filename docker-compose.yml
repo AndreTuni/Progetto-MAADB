@@ -13,7 +13,7 @@ services:
     env_file:
       - .env
     environment:
-      - INIT_DB=false
+      - INIT_DB=true
 
   postgres:
     image: postgres:14
@@ -24,15 +24,15 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-mongodb:
-  image: mongo:6
-  ports:
-    - "27017:27017"
-  environment:
-    - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
-    - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
-  volumes:
-    - mongodb_data:/data/db
+  mongodb:
+    image: mongo:6
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
+    volumes:
+      - mongodb_data:/data/db
 
   neo4j:
     image: neo4j:5

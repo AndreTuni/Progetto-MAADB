@@ -1,7 +1,7 @@
-import psycopg2
+import psycopg
 from config import settings
 
-conn = psycopg2.connect(
+conn = psycopg.connect(
     dbname=settings.postgres_db,
     user=settings.postgres_user,
     password=settings.postgres_password,

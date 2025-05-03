@@ -1,11 +1,12 @@
 #!/bin/bash
-set -e
 
-# If INIT_DB environment variable is set to true, initialize the databases
+# Check if INIT_DB is set to true, and if so, run the database initialization script
 if [ "$INIT_DB" = "true" ]; then
-    echo "Initializing databases..."
-    python db/init_script.py
+  echo "Initializing database..."
+  python db/init_script.py  # Adjust this to your actual Python script path
+  echo "Database initialization complete."
 fi
 
-# Start the application
-exec "$@"
+# Start Streamlit
+echo "Starting Streamlit..."
+streamlit run frontend/app.py --server.address=0.0.0.0 --server.port=8000
