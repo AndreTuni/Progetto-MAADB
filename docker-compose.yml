@@ -15,6 +15,7 @@ services:
     environment:
       - INIT_DB=true
 
+
   postgres:
     image: postgres:14
     ports:
