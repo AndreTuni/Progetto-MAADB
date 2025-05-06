@@ -53,3 +53,57 @@ To monitor the progress, especially the MongoDB setup, you can periodically chec
 
 ```bash
 docker logs maadbproject-app-1
+```
+
+---
+
+
+## 🔄 Restore Docker Volume Backups (Windows & macOS/Linux)
+
+To restore the database volumes from backup, follow these steps:
+
+### 1. 📥 Download Backup Files
+Place the following `.tar.bz2` files in a folder of your choice:
+- `mongodb_backup.tar.bz2`
+- `neo4j_backup.tar.bz2`
+- `postgres_backup.tar.bz2`
+
+---
+
+### 2. 📁 Open a Terminal in That Folder
+- **Windows:** Right-click the folder and select **“Open in PowerShell”**
+- **macOS/Linux:** Open Terminal and `cd` into the folder
+
+---
+
+### 3. 🗃️ Create Docker Volumes (if not already created)
+
+```bash
+docker volume create maadbproject_mongodb_data
+docker volume create maadbproject_neo4j_data
+docker volume create maadbproject_postgres_data
+```
+
+---
+
+### 4. 🔧 Run Restore Commands
+
+> ⚠️ Use `${PWD}` in **PowerShell**, and `$(pwd)` in **macOS/Linux Terminal**
+
+#### ✅ Windows PowerShell
+```powershell
+docker run --rm -v maadbproject_mongodb_data:/volume -v ${PWD}:/backup loomchild/volume-backup restore mongodb_backup.tar.bz2
+docker run --rm -v maadbproject_neo4j_data:/volume -v ${PWD}:/backup loomchild/volume-backup restore neo4j_backup.tar.bz2
+docker run --rm -v maadbproject_postgres_data:/volume -v ${PWD}:/backup loomchild/volume-backup restore postgres_backup.tar.bz2
+```
+
+#### ✅ macOS/Linux Terminal
+```bash
+docker run --rm -v maadbproject_mongodb_data:/volume -v $(pwd):/backup loomchild/volume-backup restore mongodb_backup.tar.bz2
+docker run --rm -v maadbproject_neo4j_data:/volume -v $(pwd):/backup loomchild/volume-backup restore neo4j_backup.tar.bz2
+docker run --rm -v maadbproject_postgres_data:/volume -v $(pwd):/backup loomchild/volume-backup restore postgres_backup.tar.bz2
+```
+
+---
+
+💡 If you encounter errors about missing files, ensure the `.tar.bz2` files are in the current folder and correctly named.

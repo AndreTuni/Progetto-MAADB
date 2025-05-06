@@ -16,7 +16,7 @@ services:
       - INIT_POSTGRES=false
       - INIT_MONGODB=false
       - INIT_NEO4J_NODES=false
-      - INIT_NEO4J_REL=true
+      - INIT_NEO4J_REL=false
 
 
   postgres:
