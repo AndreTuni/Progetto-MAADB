@@ -17,40 +17,6 @@ def create_constraints(driver):
         for c in constraints:
             session.run(c)
 
-# def create_nodes(driver, files, entity1, entity2, id_field1, id_field2):
-#     with driver.session() as session:
-#         tx = session.begin_transaction()
-#         for file in files:
-#             print(f"Processing file: {file}")
-#             try:
-#                 tx.run(f"""
-#                 LOAD CSV WITH HEADERS FROM 'file:///{file}' AS row FIELDTERMINATOR '|'
-#                 WITH row WHERE row.{id_field1} IS NOT NULL AND row.{id_field2} IS NOT NULL
-#                     AND row.{id_field1} <> "" AND row.{id_field2} <> ""
-#                 MERGE (e1:{entity1} {{id: toInteger(row.{id_field1})}})
-#                 MERGE (e2:{entity2} {{id: toInteger(row.{id_field2})}})
-#                 """)
-#                 print(f"Successfully processed file: {file}")
-#             except Exception as e:
-#                 print(f"Error processing file {file}: {e}")
-#         tx.commit()
-#
-# def create_single_node(driver, files, entity, id_field):
-#     with driver.session() as session:
-#         tx = session.begin_transaction()
-#         for file in files:
-#             print(f"Processing file: {file}")
-#             try:
-#                 tx.run(f"""
-#                 LOAD CSV WITH HEADERS FROM 'file:///{file}' AS row FIELDTERMINATOR '|'
-#                 WITH row WHERE row.{id_field} IS NOT NULL AND row.{id_field} <> ""
-#                 MERGE (e:{entity} {{id: toInteger(row.{id_field})}})
-#                 """)
-#                 print(f"Successfully processed file: {file}")
-#             except Exception as e:
-#                 print(f"Error processing file {file}: {e}")
-#         tx.commit()
-
 
 
 def create_nodes(driver, files, entity1, entity2, id_field1, id_field2):
