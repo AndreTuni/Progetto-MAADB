@@ -1,6 +1,7 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 
+
 class Settings(BaseSettings):
     # PostgreSQL
     postgres_db: str = Field("maadb", env="POSTGRES_DB")
@@ -20,5 +21,6 @@ class Settings(BaseSettings):
     neo4j_password: str = Field("password", env="NEO4J_PASSWORD")
 
     model_config = SettingsConfigDict(env_file=".env")
+
 
 settings = Settings()

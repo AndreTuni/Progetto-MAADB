@@ -37,6 +37,7 @@ def main():
     driver = GraphDatabase.driver(uri, auth=(user, password))
 
     # Reuse file lists
+    create_relationships(driver, post_has_tag_files, "Post", "Tag", "PostId", "TagId", "HAS_TAG")
     create_relationships(driver, knows_files, "Person", "Person", "Person1Id", "Person2Id", "KNOWS")
     create_relationships(driver, likes_post_files, "Person", "Post", "PersonId", "PostId", "LIKES")
     create_relationships(driver, likes_comment_files, "Person", "Comment", "PersonId", "CommentId", "LIKES")

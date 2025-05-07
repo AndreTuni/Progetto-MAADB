@@ -60,7 +60,6 @@ def main():
     driver = GraphDatabase.driver(uri, auth=(user, password))
 
     create_constraints(driver)
-
     create_nodes(driver, knows_files, "Person", "Person", "Person1Id", "Person2Id")
     create_nodes(driver, likes_post_files, "Person", "Post", "PersonId", "PostId")
     create_nodes(driver, likes_comment_files, "Person", "Comment", "PersonId", "CommentId")
