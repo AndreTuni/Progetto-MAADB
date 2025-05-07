@@ -107,3 +107,7 @@ docker run --rm -v maadbproject_postgres_data:/volume -v $(pwd):/backup loomchil
 ---
 
 💡 If you encounter errors about missing files, ensure the `.tar.bz2` files are in the current folder and correctly named.
+
+
+---
+la collection Person su mongo nel campo email ha una serie di email separate da ; come un'unica stringa, runnare email_to_array.py per trasformare il campo in un array di stringhe
