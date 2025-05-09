@@ -111,3 +111,6 @@ docker run --rm -v maadbproject_postgres_data:/volume -v $(pwd):/backup loomchil
 
 ---
 la collection Person su mongo nel campo email ha una serie di email separate da ; come un'unica stringa, runnare email_to_array.py per trasformare il campo in un array di stringhe
+```bash
+docker exec maadbproject-app-1 python /app/misch/email_to_array.py
+```

@@ -1,8 +1,8 @@
-from pydantic import BaseModel, Field
-from typing import Optional, List
+from pydantic import BaseModel, field_validator
+from typing import Optional, List, Any
+import math  # Required if checking for float NaN
 
-# This model can represent the structure of a post document in MongoDB
-# We might not use all fields for every response, but it's good to have a full model
+
 class PostBase(BaseModel):
     ContainerForumId: Optional[int] = None
     CreatorPersonId: int
@@ -10,44 +10,64 @@ class PostBase(BaseModel):
     browserUsed: Optional[str] = None
     content: Optional[str] = None
     creationDate: str
-    id: int # This is your custom Int64 ID
-    language: Optional[str] = None # Still a string as per your example document "pl;en"
+    id: int  # This is your custom Int64 ID
+    language: Optional[str] = None
     length: Optional[int] = None
     locationIP: Optional[str] = None
-    imageFile: Optional[float] = None # Assuming this is what was intended, though String for URL/path is more common
+    imageFile: Optional[float] = None  # Assuming this is what was intended
+
+    # Pydantic V2 style validator
+    @field_validator('content', 'browserUsed', 'language', 'locationIP', mode='before')
+    @classmethod  # Important: field_validator expects a classmethod
+    def handle_nan_values(cls, value: Any) -> Optional[str]:
+        # Check for float NaN
+        if isinstance(value, float) and math.isnan(value):
+            return None  # Or return "" if an empty string is preferred
+
+        # Optionally, check for string "NaN" or "nan" if that might occur
+        if isinstance(value, str) and value.lower() == 'nan':
+            return None  # Or return ""
+
+        return value
 
     class Config:
-        orm_mode = True
-        allow_population_by_field_name = True
-        # If your MongoDB uses "_id" and you want to map it to a field named "mongo_id" for example:
-        # fields = {'mongo_id': '_id'} # Pydantic v1 style
-        # For Pydantic v2, you might use alias_generator or field_serializer for _id if needed,
-        # but FastAPI handles ObjectId conversion well.
+        # For Pydantic V1, orm_mode = True
+        # For Pydantic V2, use model_config
+        model_config = {
+            "from_attributes": True,  # Equivalent to orm_mode = True
+            "populate_by_name": True  # Equivalent to allow_population_by_field_name = True
+        }
+
 
 class PostResponse(PostBase):
-    # You can add or exclude fields specifically for the response
     pass
+
 
 class PersonBase(BaseModel):
     LocationCityId: Optional[int] = None
     birthday: Optional[str] = None
     creationDate: str
-    # --- MODIFIED FIELD ---
-    email: List[str] # Changed from str to List[str]
-    # --- END MODIFIED FIELD ---
-    id: int # This is your custom Int32 ID
-    language: Optional[str] = None # Still a string as per your example document "pl;en"
+    email: List[str]
+    id: int
+    language: Optional[str] = None
     lastName: str
     locationIP: Optional[str] = None
     browserUsed: Optional[str] = None
     firstName: str
     gender: Optional[str] = None
 
-    class Config:
-        orm_mode = True
-        allow_population_by_field_name = True
+    # You might want a similar validator here if these fields can also receive NaN
+    @field_validator('language', 'locationIP', 'browserUsed', 'gender', 'birthday', mode='before')
+    @classmethod
+    def handle_person_nan_values(cls, value: Any) -> Optional[str]:
+        if isinstance(value, float) and math.isnan(value):
+            return None
+        if isinstance(value, str) and value.lower() == 'nan':
+            return None
+        return value
 
-# You might also want a PersonResponse model if you intend to return Person objects
-# from an endpoint, though your current query returns Post objects.
-# class PersonResponse(PersonBase):
-#     pass
+    class Config:
+        model_config = {
+            "from_attributes": True,
+            "populate_by_name": True
+        }

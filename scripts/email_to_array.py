@@ -1,3 +1,15 @@
+import sys
+import os
+
+# Get the absolute path of the directory containing the current script (e.g., /app/scripts)
+current_script_dir = os.path.dirname(os.path.abspath(__file__))
+# Get the absolute path of the project root directory (e.g., /app)
+project_root_dir = os.path.dirname(current_script_dir)
+
+# Add the project root directory to the beginning of Python's module search path
+if project_root_dir not in sys.path:
+    sys.path.insert(0, project_root_dir)
+
 import asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
 from config import settings  # Assumes config.py is in the same directory or accessible via PYTHONPATH

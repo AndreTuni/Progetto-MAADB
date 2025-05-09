@@ -198,41 +198,33 @@ def get_first_5_relationships_neo4j() -> Dict[str, List[Dict[str, Any]]]:  # Ren
 
 
 # --- Endpoint for finding posts by user email ---
-@app.get("/by-email/{user_email}",  # Path is directly under root
-         response_model=List[PostResponse],  # Ensure PostResponse is correctly defined and imported
-         summary="Find all posts created by a person given one of their emails",
-         tags=["Posts"])  # Changed tag for better grouping
+@app.get("/by-email/{user_email}",
+            response_model=List[PostResponse],
+            summary="Find all posts created by a person given one of their emails",
+            tags=["Posts"])
 async def get_posts_by_user_email(
         user_email: str = Path(..., description="An email address of the post creator.", example="Jan16@hotmail.com")
 ):
-    """
-    Retrieves all posts created by a person identified by one of their email addresses.
-    The email field in the database is an array of email strings.
-    """
-    person_document = await db.person.find_one({"email": user_email})
+    try:
+        # If email is an array field in MongoDB
+        person_document = await db.person.find_one({"email": {"$in": [user_email]}})
 
-    if not person_document:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Person with email '{user_email}' not found in any records."
-        )
+        if not person_document:
+            raise HTTPException(status_code=404, detail=f"Person with email '{user_email}' not found.")
 
-    person_id = person_document.get("id")
-    if person_id is None:
-        # This should ideally not happen if data is consistent
-        raise HTTPException(
-            status_code=500,
-            detail=f"Person record for email '{user_email}' exists but is missing an 'id' field."
-        )
+        person_id = person_document.get("id") or str(person_document.get("_id"))
+        if not person_id:
+            raise HTTPException(status_code=500, detail=f"Person record exists but is missing an 'id'.")
 
-    posts_cursor = db.post.find({"CreatorPersonId": person_id})
-    # Convert MongoDB documents to a list of dictionaries that Pydantic can validate
-    posts_list = []
-    async for post in posts_cursor:
-        post["_id"] = str(post["_id"])  # Convert ObjectId for Pydantic if not handled by response_model
-        posts_list.append(post)
+        posts_cursor = db.post.find({"CreatorPersonId": person_id})
+        posts_list = []
 
-    # Pydantic will validate each item in posts_list against PostResponse
-    return posts_list
+        async for post in posts_cursor:
+            post["_id"] = str(post["_id"])  # Required if PostResponse doesn't handle ObjectId
+            posts_list.append(post)
 
-# Remember to run with: uvicorn main:app --reload --port 8000
+        return posts_list
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+

@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 import threading
 import concurrent.futures
 import time
+import numpy as np # For np.nan if needed, though pd.NA or pd.isnull covers it
 
 # Load environment variables from .env file
 load_dotenv()
@@ -32,7 +33,7 @@ def get_mongo_client():
 
 
 def load_csv_to_mongodb(collection_name, csv_path, id_field="id", chunksize=10000, existing_ids=None):
-    """Loads a single CSV file into MongoDB, thread-safe version"""
+    """Loads a single CSV file into MongoDB, thread-safe version with data transformations"""
     client = get_mongo_client()
     db = client.get_database()
     collection = db[collection_name]
@@ -47,12 +48,33 @@ def load_csv_to_mongodb(collection_name, csv_path, id_field="id", chunksize=1000
         chunk_number = 0
         total_inserted = 0
 
-        for chunk in pd.read_csv(csv_path, sep="|", chunksize=chunksize):
+        for chunk in pd.read_csv(csv_path, sep="|", chunksize=chunksize, keep_default_na=True, na_filter=True):
+            # keep_default_na=True and na_filter=True are defaults, ensuring standard NA values are recognized.
             chunk_number += 1
             # Filter out records that already exist
             chunk = chunk[~chunk[id_field].isin(local_existing_ids)]
 
             if not chunk.empty:
+                # Apply transformations based on collection name
+                if collection_name == "person":
+                    if 'email' in chunk.columns:
+                        # Convert semicolon-separated email string to an array of strings.
+                        # Handles NaN/empty strings by converting them to an empty list.
+                        chunk['email'] = chunk['email'].apply(
+                            lambda x: x.split(';') if isinstance(x, str) and x.strip() else []
+                        )
+
+                if collection_name == "post":
+                    columns_to_process_as_string_or_none = ['imageFile', 'content', 'language']
+                    for column_name in columns_to_process_as_string_or_none:
+                        if column_name in chunk.columns:
+                            # Step 1: Convert pandas NaN (float type) to None.
+                            chunk[column_name] = chunk[column_name].astype(object).where(pd.notnull(chunk[column_name]), None)
+                            # Step 2: Ensure non-None values are strings.
+                            # Using .loc to avoid SettingWithCopyWarning and ensure modification happens on the chunk itself.
+                            non_null_mask = chunk[column_name].notnull()
+                            chunk.loc[non_null_mask, column_name] = chunk.loc[non_null_mask, column_name].astype(str)
+
                 requests = [InsertOne(row) for row in chunk.to_dict(orient="records")]
                 result = collection.bulk_write(requests)
                 inserted_count = result.inserted_count
@@ -68,6 +90,9 @@ def load_csv_to_mongodb(collection_name, csv_path, id_field="id", chunksize=1000
 
     except Exception as e:
         thread_safe_print(f"Error while processing {csv_path}: {e}")
+        # You might want to log the traceback here for more detailed error info
+        import traceback
+        thread_safe_print(traceback.format_exc())
         return csv_path, 0
     finally:
         client.close()
@@ -178,7 +203,7 @@ def load_mongodb(max_workers=None):
     # Create indexes first
     create_indexes()
 
-    # Define file paths for each collection
+    # Define file paths for each collection (ensure these paths are correct for your environment)
     person_files = [
         "app/data/dynamic/Person/part-00000-dd2f2cde-5db9-4c99-ae95-2edc4a618386-c000.csv",
         "app/data/dynamic/Person/part-00001-dd2f2cde-5db9-4c99-ae95-2edc4a618386-c000.csv",
@@ -192,25 +217,18 @@ def load_mongodb(max_workers=None):
     ]
     comment_files = [
         "app/data/dynamic/Comment/part-00000-833bf12c-c29e-47ce-b45b-08899b08abd3-c000.csv",
-        "app/data/dynamic/Comment/part-00006-833bf12c-c29e-47ce-b45b-08899b08abd3-c000.csv",
-        "app/data/dynamic/Comment/part-00005-833bf12c-c29e-47ce-b45b-08899b08abd3-c000.csv",
-        "app/data/dynamic/Comment/part-00003-833bf12c-c29e-47ce-b45b-08899b08abd3-c000.csv",
-        "app/data/dynamic/Comment/part-00001-833bf12c-c29e-47ce-b45b-08899b08abd3-c000.csv",
-        "app/data/dynamic/Comment/part-00004-833bf12c-c29e-47ce-b45b-08899b08abd3-c000.csv",
-        "app/data/dynamic/Comment/part-00008-833bf12c-c29e-47ce-b45b-08899b08abd3-c000.csv",
-        "app/data/dynamic/Comment/part-00007-833bf12c-c29e-47ce-b45b-08899b08abd3-c000.csv",
+        # ... other comment files
         "app/data/dynamic/Comment/part-00002-833bf12c-c29e-47ce-b45b-08899b08abd3-c000.csv"
     ]
     forum_files = [
         "app/data/dynamic/Forum/part-00000-a997c396-dbaf-4755-b9d6-7f3d6066961a-c000.csv",
-        "app/data/dynamic/Forum/part-00001-a997c396-dbaf-4755-b9d6-7f3d6066961a-c000.csv",
+        # ... other forum files
         "app/data/dynamic/Forum/part-00002-a997c396-dbaf-4755-b9d6-7f3d6066961a-c000.csv"
     ]
 
     # Load all collections - the heaviest operations are performed in parallel
     total_start_time = time.time()
 
-    # You can adjust the order or use threading for collections too if needed
     load_collection_with_threads("person", person_files, max_workers=max_workers)
     load_collection_with_threads("post", post_files, max_workers=max_workers)
     load_collection_with_threads("comment", comment_files, max_workers=max_workers)
@@ -224,10 +242,5 @@ def load_mongodb(max_workers=None):
 
 
 if __name__ == "__main__":
-    # You can specify the number of workers to use, or let it use the default
-    # For I/O bound tasks like this, using more workers than CPUs can be beneficial
-    # A good rule of thumb is 2-3x the number of CPUs
-    import os
-
-    recommended_workers = min(32, (os.cpu_count() or 4) * 2)
+    recommended_workers = min(32, (os.cpu_count() or 4) * 2) # Ensure os.cpu_count() is available
     load_mongodb(max_workers=recommended_workers)
