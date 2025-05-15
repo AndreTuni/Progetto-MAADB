@@ -3,6 +3,7 @@ import requests
 import json
 import pandas as pd
 
+
 # --- CONFIGURATION ---
 # CORRECTED: FastAPI is running on port 80 as per your entrypoint.sh
 FASTAPI_BASE_URL = "http://localhost:80"
@@ -19,7 +20,10 @@ action = st.sidebar.selectbox(
         "MongoDB Actions",
         "Neo4j Actions",
         "PostgreSQL Actions",
-        "Find Posts by Email"
+        "Find Posts by Email",
+        "Find Forums by Email",
+        "Find 2nd Degree Commenters on Liked Posts by Email",
+        "Find Common Interests by Organisation"
     ],
     index=0  # Default to Home
 )
@@ -187,3 +191,75 @@ elif action == "Find Posts by Email":
             # Error handling (including 404 for "Person not found") is done within make_api_request.
         else:
             st.warning("Doh! Please enter an email address to search.")
+
+
+# --- Find Forums by Email Action ---
+elif action == "Find Forums by Email":
+    st.header("Find Forums by User Email (Neo4j)")
+    input = st.text_input("Enter the email address of the user:", placeholder="e.g., Tissa47@gmx.com")
+
+    if st.button("Search Forums 🔍"):
+        if input:
+            endpoint = f"/forumsEmail/{input}"
+            print("Send request for" +input)
+            forums = make_api_request(endpoint)
+
+            if forums is not None:
+                if forums:
+                    st.success(f"✅ Found {len(forums)} forum(s) linked to '{input}':")
+                    df = pd.DataFrame(forums)
+                    st.dataframe(df, use_container_width=True)
+
+                    if st.checkbox("Show raw JSON", key="show_raw_forums_json"):
+                        st.json(forums)
+                else:
+                    st.warning(f"No forums found for user '{input}'.")
+        else:
+            st.warning("Please enter a valid email address.")
+
+# --- Find 2nd Degree Connections Who Commented on Liked Posts ---
+elif action == "Find 2nd Degree Commenters on Liked Posts by Email":
+    st.header("Find 2nd Degree Commenters on Liked Posts by Email")
+    input = st.text_input("Enter the email address of the user:", placeholder="e.g., Tissa47@gmx.com")
+
+    if st.button("Search Connections 🔍"):
+        if input:
+            endpoint = f"/second_degree_commenters_on_liked_posts/{input}"
+            results = make_api_request(endpoint)
+
+            if results is not None:
+                if results:
+                    st.success(f"✅ Found {len(results)} comment(s) from 2nd degree connections related to liked posts:")
+                    df = pd.DataFrame(results)
+                    st.dataframe(df, use_container_width=True)
+                    if st.checkbox("Show raw JSON", key="show_raw_2nd_degree_json"):
+                        st.json(results)
+                else:
+                    st.warning(f"No matching results found for user '{input}'.")
+        else:
+            st.warning("Please enter a valid email address.")
+
+
+# --- Find Common Interests among Active Users ---
+elif action == "Find Common Interests by Organisation":
+    st.header("Common Interests among Active Users ")
+    input = st.text_input("Enter the name of the organisation:", placeholder="e.g., UniTO")
+
+    if st.button("Search Connections 🔍"):
+        if input:
+            endpoint = f"/common_interests_among_active_people/{input}"
+            results = make_api_request(endpoint)
+
+            if results is not None:
+                if results:
+                    st.success(f"✅ Found {len(results)} the top 10 most used tags by people who work or study in the same organsation:")
+                    df = pd.DataFrame(results)
+                    st.dataframe(df, use_container_width=True)
+
+                    if st.checkbox("Show raw JSON", key="show_raw_2nd_degree_json"):
+                        st.json(results)
+                else:
+                    st.warning(f"No matching results found for user '{input}'.")
+        else:
+            st.warning("Please enter a valid email address.")
+

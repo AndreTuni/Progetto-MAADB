@@ -1,6 +1,8 @@
-from pydantic import BaseModel, field_validator
-from typing import Optional, List, Any
+from pydantic import BaseModel, field_serializer, field_validator,ConfigDict, Field
+from typing import Dict, Optional, List, Any
 import math  # Required if checking for float NaN
+from datetime import datetime
+
 
 
 class PostBase(BaseModel):
@@ -71,3 +73,31 @@ class PersonBase(BaseModel):
             "from_attributes": True,
             "populate_by_name": True
         }
+
+
+class ForumResponse(BaseModel):
+    forum_id: int
+    title: str
+    creation_date: Optional[datetime] = Field(alias="membership_creation_date")
+    member_count : int
+    model_config = ConfigDict(arbitrary_types_allowed=True) # abilita tipi non standard -> datetime
+    @field_serializer("creation_date")
+    def format_creation_date(self, dt: Optional[datetime], _info):
+        if dt:
+            return dt.strftime("%d/%m/%Y %H:%M")
+        return None
+
+class SecondDegreeCommentResponse(BaseModel):
+    post_id: int
+    post_content: Optional[str]
+    second_person_name: str
+    comment_content:Optional[str]
+
+class TagResponse(BaseModel):
+    tag_id: int
+    tag_name: str
+    tag_url: Optional[str]
+    class_id: int
+    class_name: str
+    class_url: Optional[str]
+    usage_count: int
