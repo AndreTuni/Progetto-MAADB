@@ -39,4 +39,4 @@ RUN chmod +x /entrypoint.sh
 EXPOSE 8501 8000
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["sh", "-c", "streamlit run frontend/app.py & uvicorn frontend/main:app --host 0.0.0.0 --port 8000"]
+#CMD ["sh", "-c", "streamlit run frontend/app.py & uvicorn frontend/main:app --host 0.0.0.0 --port 8000"]

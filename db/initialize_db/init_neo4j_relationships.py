@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
 
-from db.init_neo4j_nodes import likes_post_files, likes_comment_files, has_interest_files, member_of_files, \
+from db.initialize_db.init_neo4j_nodes import likes_post_files, likes_comment_files, has_interest_files, member_of_files, \
     forum_has_tag_files, post_has_tag_files, comment_has_tag_files, study_at_files, work_at_files, knows_files
 
 

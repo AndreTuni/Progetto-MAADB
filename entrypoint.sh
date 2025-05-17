@@ -31,10 +31,13 @@ fi
 echo -e "\033[1;32m#### Database initialization complete. ####\033[0m"
 
 
-# Start FastAPI with Uvicorn
-echo "Starting FastAPI application..."
-uvicorn main:app --host 0.0.0.0 --port 80 --reload &
+# Start FastAPI
+echo "Starting FastAPI (with reload)..."
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload &
 
 # Start Streamlit
 echo "Starting Streamlit..."
-streamlit run frontend/app.py --server.address=0.0.0.0 --server.port=8000
+streamlit run frontend/app.py --server.address=0.0.0.0 --server.port=8501 &
+
+# Keep the container running and let both background processes handle reloads
+wait

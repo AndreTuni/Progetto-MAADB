@@ -1,7 +1,8 @@
+# models/post_model.py
+
 from pydantic import BaseModel, field_validator
 from typing import Optional, List, Any
-import math  # Required if checking for float NaN
-
+import math
 
 class PostBase(BaseModel):
     ContainerForumId: Optional[int] = None
@@ -14,36 +15,27 @@ class PostBase(BaseModel):
     language: Optional[str] = None
     length: Optional[int] = None
     locationIP: Optional[str] = None
-    imageFile: Optional[float] = None  # Assuming this is what was intended
+    imageFile: Optional[str] = None  # MODIFIED: Changed from Optional[float] to Optional[str]
 
-    # Pydantic V2 style validator
-    @field_validator('content', 'browserUsed', 'language', 'locationIP', mode='before')
-    @classmethod  # Important: field_validator expects a classmethod
+    @field_validator('content', 'browserUsed', 'language', 'locationIP', 'imageFile', mode='before') # ADDED: 'imageFile'
+    @classmethod
     def handle_nan_values(cls, value: Any) -> Optional[str]:
-        # Check for float NaN
         if isinstance(value, float) and math.isnan(value):
-            return None  # Or return "" if an empty string is preferred
-
-        # Optionally, check for string "NaN" or "nan" if that might occur
+            return None
         if isinstance(value, str) and value.lower() == 'nan':
-            return None  # Or return ""
-
+            return None
         return value
 
     class Config:
-        # For Pydantic V1, orm_mode = True
-        # For Pydantic V2, use model_config
         model_config = {
-            "from_attributes": True,  # Equivalent to orm_mode = True
-            "populate_by_name": True  # Equivalent to allow_population_by_field_name = True
+            "from_attributes": True,
+            "populate_by_name": True
         }
-
 
 class PostResponse(PostBase):
     pass
 
-
-class PersonBase(BaseModel):
+class PersonBase(BaseModel): # No changes needed here for this request
     LocationCityId: Optional[int] = None
     birthday: Optional[str] = None
     creationDate: str
@@ -56,7 +48,6 @@ class PersonBase(BaseModel):
     firstName: str
     gender: Optional[str] = None
 
-    # You might want a similar validator here if these fields can also receive NaN
     @field_validator('language', 'locationIP', 'browserUsed', 'gender', 'birthday', mode='before')
     @classmethod
     def handle_person_nan_values(cls, value: Any) -> Optional[str]:
