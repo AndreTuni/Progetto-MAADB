@@ -1,4 +1,3 @@
-# models/query_7/model.py
 from pydantic import BaseModel, Field
 from typing import List, Optional
 import psycopg2
@@ -11,8 +10,6 @@ class TagUsage(BaseModel):
     count: int
     tag_url: Optional[str] = None
     tag_class_name: Optional[str] = None
-    # Optional: You could also include tag_id if useful for frontend linking
-    # tag_id: Optional[int] = None
 
 
 class MostUsedTagsResponse(BaseModel):
@@ -81,7 +78,6 @@ async def get_most_used_tags_by_city_interest(
                                     message=f"No tags found by interest for people in {city_name_display}.")
 
     tag_ids_to_fetch_details = [tc["tag_id"] for tc in tag_counts_from_neo4j]
-    print(f"DEBUG: Tag IDs from Neo4j to fetch details for: {tag_ids_to_fetch_details}")  # DEBUG PRINT
 
     tag_details_map = {}
     pg_error_message = None  # To store any PG error for the main response
@@ -93,16 +89,12 @@ async def get_most_used_tags_by_city_interest(
                 pg_query = f"""
                 SELECT t.id, t.name AS tag_name, t.url AS tag_url, tc.name AS tag_class_name
                 FROM tag t
-                LEFT JOIN tagclass tc ON t."TypeTagClassId" = tc.id
+                LEFT JOIN tagclass tc ON t.TypeTagClassId = tc.id
                 WHERE t.id IN ({placeholders})
                 """
-                print(
-                    f"DEBUG: Executing PG query: {pg_query} with params {tuple(tag_ids_to_fetch_details)}")  # DEBUG PRINT
                 cursor.execute(pg_query, tuple(tag_ids_to_fetch_details))
                 fetched_rows = cursor.fetchall()
-                print(f"DEBUG: Fetched {len(fetched_rows)} rows from PostgreSQL for tag details.")  # DEBUG PRINT
                 for row in fetched_rows:
-                    print(f"DEBUG: PG Row: {dict(row)}")  # DEBUG PRINT
                     tag_details_map[row["id"]] = {
                         "name": row["tag_name"],
                         "url": row["tag_url"],

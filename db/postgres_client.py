@@ -1,9 +1,15 @@
-# db/postgres_client.py
+import psycopg
 import psycopg2
 from psycopg2 import pool
-# from psycopg2.extras import DictCursor # You can import this if needed elsewhere or set in conn
 from config import settings
-# import contextlib # MODIFIED: No longer needed for get_db_connection
+
+conn = psycopg.connect(
+    dbname=settings.postgres_db,
+    user=settings.postgres_user,
+    password=settings.postgres_password,
+    host=settings.postgres_host,
+    port=settings.postgres_port
+)
 
 # Connection parameters for psycopg2
 DB_ARGS = {
@@ -16,7 +22,6 @@ DB_ARGS = {
 
 try:
     postgres_pool = psycopg2.pool.SimpleConnectionPool(minconn=1, maxconn=10, **DB_ARGS)
-    print("PostgreSQL connection pool (psycopg2) initialized successfully.")
 except psycopg2.OperationalError as e:
     print(f"CRITICAL: Failed to initialize PostgreSQL connection pool (psycopg2): {e}")
     postgres_pool = None

@@ -11,43 +11,84 @@ FASTAPI_BASE_URL = "http://localhost:8000"  # Or your actual FastAPI URL
 st.set_page_config(page_title="Progetto MAADB", layout="wide")
 st.title("📊 Progetto MAADB Dashboard")
 
-# --- Sidebar for navigation ---
-st.sidebar.title("Navigation")
-action_options = [
-    "Home",
-    "MongoDB Actions",
-    "Neo4j Actions",
-    "PostgreSQL Actions",
-    "Find Posts by Email",
-    "Find Groups by Work & Forum",
-    "Find Most Used Tags by City Interest"  # New Action
-]
-# Update default_index if you want this new one to be default for testing
-try:
-    # default_index = action_options.index("Find Groups by Work & Forum")
-    default_index = action_options.index("Find Most Used Tags by City Interest") # Default to new query
-except ValueError:
-    default_index = 0
 
-action = st.sidebar.selectbox(
-    "Select an action",
-    action_options,
-    index=default_index
+# --- Sidebar for navigation ---
+action = None
+st.sidebar.title("Navigation")
+main_menu = st.sidebar.radio(
+    "Choose a section",
+    ["🏠 Home", "🔗 Check Connections", "⚙️ Parametric Queries", "📈 Analytical Queries"]
 )
+
+
+# Default content
+if main_menu == "🏠 Home":
+    st.markdown("## 👋 Welcome to the MAADB Project Dashboard")
+    st.markdown("""
+    <div style='font-size: 18px; line-height: 1.6'>
+        This interactive dashboard allows you to explore and analyze the <strong>MAADB</strong> project's data using powerful database queries.
+        <br><br>
+        Use the menu on the left to navigate through the various features. Each section offers tools and insights powered by:
+        <ul>
+            <li><strong>📦 MongoDB</strong> — for document-based data like posts, users, and forums</li>
+            <li><strong>🔗 Neo4j</strong> — for relationship-based data such as social connections</li>
+            <li><strong>🧮 PostgreSQL</strong> — for static data such as organisations or places</li>
+        </ul>
+        <br>
+        💡 <em>Select one of the modules in the sidebar to get started!</em>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.info("Tip: You can switch between sections at any time using the sidebar.")
+
+
+# Section 1: Connection health
+elif main_menu == "🔗 Check Connections":
+    action = st.sidebar.selectbox("🔍 Select Connection", [
+        "-- Select an option --", # Default option
+        "MongoDB Connection",
+        "Neo4J Connection",
+        "PostgreSQL Connection"
+    ])
+    st.subheader(f"🔗 Action: {action}")
+
+
+# Section 2: Parametric Queries
+elif main_menu == "⚙️ Parametric Queries":
+    action = st.sidebar.selectbox("🧪 Select Query", [
+        "-- Select an option --", # Default option
+        "Post of a Person",
+        "Forum of a Person",
+        "Friends who Comment",
+        "Colleagues in same Forum",
+        "Active second-degree Connections",
+    ])
+    st.subheader(f"⚙️ Action: {action}")
+
+
+# Section 3: Analytical Queries
+elif main_menu == "📈 Analytical Queries":
+    action = st.sidebar.selectbox("📊 Select Query", [
+        "-- Select an option --", # Default option
+        "Cities with active People",
+        "Favorite Tags for Birthplace",
+        "Common Interests",
+        "Forums with interest in TagClass"
+    ])
+    st.subheader(f"📈 Action: {action}")
 
 
 # --- Helper function for API requests ---
 def make_api_request(endpoint: str, method: str = "GET", params: dict = None, data: dict = None):
     """Helper function to make API requests and handle common errors."""
-    url = f"{FASTAPI_BASE_URL}{endpoint}"
+    url = f"{FASTAPI_BASE_URL}{endpoint}"  # Construct full URL here
     try:
-        # For GET requests with params, requests library handles URL encoding
-        log_params = params if params else "{}"
-        st.info(f"⏳ Querying API: {method} {url} with params: {log_params}")
+        st.info(f"⏳ Querying API: {method} {url}")
         if method == "GET":
             response = requests.get(url, params=params)
         elif method == "POST":
-            response = requests.post(url, params=params, json=data)  # For POST, data is usually in json body
+            response = requests.post(url, params=params, json=data)
+        # Add other methods (PUT, DELETE) if needed
         else:
             st.error(f"Unsupported HTTP method: {method}")
             return None
@@ -59,14 +100,13 @@ def make_api_request(endpoint: str, method: str = "GET", params: dict = None, da
         error_message = f"HTTP Error: {e.response.status_code}"
         try:
             error_detail = e.response.json().get("detail", e.response.text)
-            st.error(f"{error_message} - Detail: {error_detail}")
-        except json.JSONDecodeError:  # If error response is not JSON
-            st.error(f"{error_message} - Server Response: {e.response.text}")
+            st.error(f"{error_message} - {error_detail}")
+        except json.JSONDecodeError:
+            st.error(f"{error_message} - {e.response.text}")
     except requests.exceptions.ConnectionError:
         st.error(
-            f"🔌 Connection Error: Could not connect to the FastAPI backend at {FASTAPI_BASE_URL}. "
-            f"Is it running and accessible?")
-    except json.JSONDecodeError:  # If successful response is not valid JSON
+            f"🔌 Connection Error: Could not connect to the FastAPI backend at {FASTAPI_BASE_URL}. Is it running and accessible on port 80?")
+    except json.JSONDecodeError:
         st.error("Error: Invalid JSON response from the server.")
     except Exception as e:
         st.error(f"An unexpected error occurred: {e}")
@@ -74,125 +114,161 @@ def make_api_request(endpoint: str, method: str = "GET", params: dict = None, da
 
 
 # --- Page Content based on Action ---
+if action == "-- Select an option --":
+    st.markdown("Please select an option from the sidebar!") 
 
-if action == "Home":
-    st.header("Welcome to the MAADB Project Dashboard!")
-    st.markdown(f"""
-        Use the sidebar to navigate through different database actions and queries.
-        Ensure your FastAPI backend is running and accessible.
-        Streamlit is attempting to connect to FastAPI at: `{FASTAPI_BASE_URL}`.
-    """)
 
-elif action == "MongoDB Actions":
-    st.header("MongoDB Actions")
-    if st.button("Check MongoDB Connection", key="mongo_health_btn"):
+# --- MongoDB Actions ---
+if action == "MongoDB Connection":
+    st.markdown("ℹ️ This action allows you to check the connection status with the MongoDB database")
+    if st.button("Check MongoDB Connection"):
         result = make_api_request("/mongo/health")
         if result:
             st.success(result.get("status", "Status not found"))
             st.write(f"Server Info: {result.get('server_info', 'Server info not available')}")
 
-    if st.button("Get First 5 Objects from MongoDB", key="mongo_first5_btn"):
-        results = make_api_request("/mongo/first5")
-        if results:
-            if not results:
-                st.info("The response from the server was empty or no collections found.")
-            else:
-                for collection, data_list in results.items():
-                    st.subheader(f"Collection: {collection}")
-                    if data_list:
-                        # ObjectId conversion if necessary (though your backend might handle it)
-                        for item in data_list:
-                            if '_id' in item and isinstance(item['_id'], dict) and '$oid' in item['_id']:
-                                item['_id'] = item['_id']['$oid']
-                        df = pd.DataFrame(data_list)
-                        st.dataframe(df, use_container_width=True)
-                    else:
-                        st.write(f"No data found or returned for {collection}")
 
-
-elif action == "Neo4j Actions":
-    st.header("Neo4j Actions")
-    if st.button("Check Neo4j Connection", key="neo4j_health_btn"):
+# --- Neo4j Actions ---
+elif action == "Neo4J Connection":
+    st.markdown("ℹ️ This action allows you to check the connection status with the Neo4J database") 
+    if st.button("Check Neo4j Connection"):
         result = make_api_request("/neo4j/health")
         if result:
             st.success(result.get("status", "Status not found"))
             st.write(f"Server Info: {result.get('server_info', 'Server info not available')}")
 
-    if st.button("Get First 5 Relationships by Type", key="neo4j_first5_btn"):
-        results = make_api_request("/neo4j/first5")
-        if results:
-            if not results:
-                st.info("No relationship types found or the response was empty.")
-            else:
-                st.subheader("First 5 Relationships by Type:")
-                for rel_type, relationships in results.items():
-                    st.write(f"**Relationship Type: `{rel_type}`**")
-                    if relationships:
-                        df = pd.DataFrame(relationships)
-                        st.dataframe(df, use_container_width=True)
-                    else:
-                        st.info(f"No relationships found for type `{rel_type}`.")
 
-elif action == "PostgreSQL Actions":
-    st.header("PostgreSQL Actions")
-    if st.button("Check PostgreSQL Connection", key="pg_health_btn"):
+# --- PostgreSQL Actions ---
+elif action == "PostgreSQL Connection":
+    st.markdown("ℹ️ This action allows you to check the connection status with the PostgreSQL database") 
+    if st.button("Check PostgreSQL Connection"):
         result = make_api_request("/postgres/health")
         if result:
             st.success(result.get("status", "Status not found"))
             st.write(f"Server Info: {result.get('server_info', 'Server info not available')}")
 
-    if st.button("Get First 5 Records from PostgreSQL", key="pg_first5_btn"):
-        results = make_api_request("/postgres/first5")
-        if results:
-            if not results:
-                st.info("The response from the server was empty or no tables found.")
-            else:
-                for table, data_list in results.items():
-                    st.subheader(f"Table: {table}")
-                    if data_list:
-                        df = pd.DataFrame(data_list)
-                        st.dataframe(df, use_container_width=True)
-                    else:
-                        st.write(f"No data found or returned for {table}")
 
+# --- 1. Find Posts by Email Action ---
+elif action == "Post of a Person":
+    st.markdown("ℹ️ This query allows you to view posts created by a person") 
+    email_input = st.text_input("Enter the email address of the user:", placeholder="e.g., Tissa47@gmx.com")
 
-elif action == "Find Posts by Email":
-    st.header("Find Posts by User Email")
-    email_input = st.text_input("Enter the email address of the user:", placeholder="e.g., Tissa47@gmx.com",
-                                key="email_input_posts")
-
-    if st.button("Search Posts 🚀", key="search_posts_email_btn"):
+    if st.button("Search Posts 🚀"):
         if email_input:
+            # The endpoint path in FastAPI is /by-email/{user_email}
+            # The FASTAPI_BASE_URL (http://localhost:8000) is prepended by make_api_request
             api_endpoint = f"/by-email/{email_input}"
-            posts_data = make_api_request(api_endpoint)
 
-            if posts_data is not None:
-                if posts_data:
-                    st.success(f"✅ Found {len(posts_data)} post(s) for '{email_input}':")
-                    display_data_for_df = []
-                    for post_item in posts_data:
-                        display_data_for_df.append({
-                            "Post ID": post_item.get("id"),
-                            "Content": post_item.get("content", "N/A"),
-                            "Media": post_item.get("imageFile", "N/A"),
-                            "Creation Date": post_item.get("creationDate")
+            posts = make_api_request(api_endpoint)
+
+            if posts is not None:  # Check if request was successful (posts can be an empty list)
+                if posts:  # If posts list is not empty
+                    st.success(f"✅ Found {len(posts)} post(s) for '{email_input}':")
+                    display_posts = []
+                    for post in posts:
+                        display_posts.append({
+                            "Post ID": post.get("id"),
+                            "Content": post.get("content", "N/A"),
+                            "Creation Date": post.get("creationDate"),
+                            "Language": post.get("language", "N/A"),  # Assuming this is a string like "pl;en"
+                            "Length": post.get("length", "N/A")
                         })
-                    column_order = ["Post ID", "Content", "Media", "Creation Date"]
-                    df = pd.DataFrame(display_data_for_df, columns=column_order)
+                    df = pd.DataFrame(display_posts)
                     st.dataframe(df, use_container_width=True)
-                else:
+                else:  # posts is an empty list
                     st.warning(
-                        f"🤷 No posts found for user with email '{email_input}'. They might exist but have not posted anything."
+                        f"🤷 No posts found for user with email '{email_input}'. They might exist but have not posted "
+                        f"anything."
                     )
+            # Error handling (including 404 for "Person not found") is done within make_api_request.
         else:
             st.warning("Doh! Please enter an email address to search.")
 
-elif action == "Find Groups by Work & Forum":
-    st.header("👥 Find Groups by Shared Work & Forum")
+
+# --- 2. Find Forums by Email Action ---
+elif action == "Forum of a Person":
+    st.markdown("ℹ️ This query allows you to find all forums a person belongs to") 
+    input = st.text_input("Enter the email address of the user:", placeholder="e.g., Tissa47@gmx.com")
+
+    if st.button("Search Forums 🔍"):
+        if input:
+            endpoint = f"/forumsEmail/{input}"
+            forums = make_api_request(endpoint)
+
+            if forums is not None:
+                if forums:
+                    st.success(f"✅ Found {len(forums)} forum(s) linked to '{input}':")
+                    df = pd.DataFrame(forums)
+                    st.dataframe(df, use_container_width=True)
+                else:
+                    st.warning(f"No forums found for user '{input}'.")
+        else:
+            st.warning("Please enter a valid email address.")
+
+
+# --- 3. Find Persons who Know and Commented Action ---
+elif action == "Friends who Comment":
+    st.markdown("ℹ️ This query allows you to find all the people who know a person and have commented on his posts, with forum details ")
+    target_email = st.text_input("Enter the email address of the user:", placeholder="e.g., Jeorge74@gmail.com")
+
+    if st.button("Search Persons 🚀"):
+        if target_email:
+            # The FASTAPI_BASE_URL (http://localhost:8000) is prepended by make_api_request
+            api_endpoint = f"/find-person/by-email/{target_email}"
+
+            results = make_api_request(api_endpoint)
+
+            if results is not None:  # Check if request was successful (persons can be an empty list)
+                if results:  # If persons list is not empty
+                    # Get the name of target user from first result
+                    target_name = f"{results[0]['target_person']['firstName']} {results[0]['target_person']['lastName']}"
+                    st.success(f"✅ Found {len(results)} persons who know {target_name} ({target_email}) and have commented on his posts!")
+                    
+                    for idx, item in enumerate(results):
+                        knowing_person = item.get("knowing_person", {})
+                        full_name = knowing_person.get("firstName", "N/A") + " " + knowing_person.get("lastName", "N/A")
+                        st.subheader(f"👤 {full_name}")
+
+                        # Comments with posts
+                        st.markdown("**🗨️ Comments & Related Posts:**")
+                        comment_data = []
+                        for comment in item.get("comments", []):
+                            post = comment.get("post", {})
+                            comment_data.append({
+                                "Comment ID": comment.get("id"),
+                                "Content": comment.get("content", "N/A"),
+                                "Post ID": post.get("id", "N/A"),
+                                "Post Content": post.get("content", "N/A"),
+                                "Forum ID": post.get("forum_id", "N/A"),
+                                "Post Creation": post.get("creationDate", "N/A")
+                            })
+                        st.dataframe(pd.DataFrame(comment_data), use_container_width=True)
+
+                        # Forums
+                        forums = item.get("forums", [])
+                        if forums:
+                            st.markdown(f"**📚 Forums of {target_name}'s Posts:**")
+                            forum_data = [{
+                                "Forum ID": forum.get("id"),
+                                "Title": forum.get("title", "N/A"),
+                                "Creation Date": forum.get("creationDate", "N/A")
+                            } for forum in forums]
+                            st.dataframe(pd.DataFrame(forum_data), use_container_width=True)
+                else:  # Persons is an empty list
+                    st.warning(
+                        f"🤷 No persons found that knows user with email '{target_email}' and has commented on his posts. "
+                    )
+        # Error handling (including 404 for "Person not found") is done within make_api_request.
+        else:
+            st.warning("Doh! Please enter an email address to search.")
+
+
+# --- 4. Find Colleagues in same Forum ---
+elif action == "Colleagues in same Forum":
     st.markdown("""
-    Finds groups of people (2 or more) who work at the same company (having started in or before the target year) 
-    and are members of the same forum.
-    """)
+                ℹ️ This query allows you to find Finds groups of people (2 or more) who work at the same company (having started in or before the target year) 
+                and are members of the same forum.
+                """)
 
     current_year = datetime.datetime.now().year
     target_year_input = st.number_input(
@@ -253,11 +329,7 @@ elif action == "Find Groups by Work & Forum":
                                 member_df_columns = ["Person ID", "First Name", "Last Name", "Email(s)"]
                                 member_df = pd.DataFrame(member_data_for_df, columns=member_df_columns)
                                 st.dataframe(member_df, use_container_width=True)
-
-                                if st.checkbox(f"Show raw JSON for Group {i + 1}", key=f"show_raw_json_group_{i}"):
-                                    st.json(group)
                             else:
-                                # This case should ideally not happen if backend logic ensures groups have >1 member
                                 st.write("No members listed for this group (though the group itself was identified).")
                 else:  # API returned an empty list
                     st.info(
@@ -266,10 +338,67 @@ elif action == "Find Groups by Work & Forum":
         else:
             st.warning("Please enter a target year.")
 
-elif action == "Find Most Used Tags by City Interest":
-    st.header("🏷️ Find Most Used Tags by City (User Interest)")
+
+# --- 5. Find 2nd Degree Connections Who Commented on Liked Posts ---
+elif action == "Active second-degree Connections":
+    st.markdown("ℹ️ This query allows you to find second degree connection of a person who have commented posts that the person likes")
+    input = st.text_input("Enter the email address of the user:", placeholder="e.g., Tissa47@gmx.com")
+
+    if st.button("Search Connections 🔍"):
+        if input:
+            endpoint = f"/second_degree_commenters_on_liked_posts/{input}"
+            results = make_api_request(endpoint)
+
+            if results is not None:
+                if results:
+                    st.success(f"✅ Found {len(results)} comment(s) from 2nd degree connections related to liked posts:")
+                    df = pd.DataFrame(results)
+                    st.dataframe(df, use_container_width=True)
+                    if st.checkbox("Show raw JSON", key="show_raw_2nd_degree_json"):
+                        st.json(results)
+                else:
+                    st.warning(f"No matching results found for user '{input}'.")
+        else:
+            st.warning("Please enter a valid email address.")
+
+
+# --- 6. Find Cities of active people ---
+elif action == "Cities with active People":
+    st.markdown("ℹ️ This query allows you to find all the cities from which a minimium number of active people come (ie who have created or commented at least 5/post comments) ")
+    min_active_input = st.number_input("Minimum number of active users (who posted or commented at least 5 times):", min_value=1,value=10,step=1)
+    if st.button("Search Cities 🏙️"):
+        if min_active_input: 
+            # The FASTAPI_BASE_URL (http://localhost:8000) is prepended by make_api_request
+            api_endpoint = f"/find-cities/by-activeuser?min_active_people={min_active_input}"
+
+            cities = make_api_request(api_endpoint)
+
+            if cities is not None:  # Check if request was successful (cities can be an empty list)
+                if cities:  # If posts list is not empty
+                    st.success(f"✅ Found {len(cities)} city/cities with at least {min_active_input} active users:")
+                    display_cities = []
+                    for city in cities:
+                        display_cities.append({
+                            "City ID": city.get("cityId"),
+                            "City Name": city.get("cityName", "N/A"),
+                            "Active Users": city.get("activeUserCount")
+                        })
+
+                    df = pd.DataFrame(display_cities)
+                    st.dataframe(df, use_container_width=True)
+                else:  # posts is an empty list
+                    st.warning(
+                        f"🤷 No cities found with at least {min_active_input} active users."
+                    )
+            # Error handling (including 404 for "Person not found") is done within make_api_request.
+        else:
+            st.warning("Doh! Please enter a minimium active number of users to search.")
+
+
+# --- 7. Favorite Tags for Birthplace ---
+elif action == "Favorite Tags for Birthplace":
     st.markdown("""
-    Given a user's email, this query finds their city. Then, it identifies the tags
+    ℹ️ This query allows you to find the city of a given a user's email. Then, it identifies the tags
     (along with their URL and class) that people in that same city have most
     frequently marked as a direct interest (`HAS_INTEREST`).
     """)
@@ -301,15 +430,6 @@ elif action == "Find Most Used Tags by City Interest":
                 city_name_from_response = response_data.get('city_name')
                 city_info_display = f"(City: {city_name_from_response})" if city_name_from_response else "(City information not available)"
 
-                if message:
-                    if not tags_list and (
-                            "not found" in message.lower() or "no other persons" in message.lower() or "no tags found" in message.lower()):
-                        st.warning(f"{message} {city_info_display}")
-                    elif not tags_list and "error occurred" in message.lower():
-                        st.error(f"{message} {city_info_display}")
-                    else:
-                        st.info(f"{message} {city_info_display}")
-
                 if tags_list:
                     st.success(f"Found {len(tags_list)} tag(s) for user '{user_email_input}' in {city_info_display}:")
 
@@ -338,8 +458,63 @@ elif action == "Find Most Used Tags by City Interest":
                     )
                 elif not message:
                     st.info(f"No tags found {city_info_display} and no specific message from API.")
-
-                if st.checkbox("Show raw API response JSON", key="q7_show_raw_json"):
-                    st.json(response_data)
         else:
             st.warning("Please enter a user email address.")
+
+
+# --- 8. Find Common Interests among Active Users ---
+elif action == "Common Interests":
+    st.markdown("ℹ️ This query allows you to find the most common interests among people who have posted at least 10 posts and work in the same place or study at the same university ")
+    input = st.text_input("Enter the name of the organisation:", placeholder="e.g., UniTO")
+
+    if st.button("Search Connections 🔍"):
+        if input:
+            endpoint = f"/common_interests_among_active_people/{input}"
+            results = make_api_request(endpoint)
+
+            if results is not None:
+                if results:
+                    st.success(f"✅ Found {len(results)} the top 10 most used tags by people who work or study in the same organsation:")
+                    df = pd.DataFrame(results)
+                    st.dataframe(df, use_container_width=True)
+                else:
+                    st.warning(f"No matching results found for user '{input}'.")
+        else:
+            st.warning("Please enter a valid email address.")
+
+
+# --- 9. Find Forum of Members interested in same tagClass by tag class name ---
+elif action == "Forums with interest in TagClass":
+    st.markdown("ℹ️ This query allows you to view all forums with more than a certain number of members interested in tags of the same tag class  ")
+    tagclass_input = st.text_input("Enter the name of the tagClass:", placeholder="e.g., University")
+    min_members_input = st.number_input("Minimum number of interested members:", min_value=1, value=5, step=1)
+    
+    if st.button("Search Forums 🔍"):
+        if tagclass_input:
+            # Construct query parameters
+            api_endpoint = f"/find-forum/by-tagclass/{tagclass_input}?min_members={min_members_input}"
+
+            forums = make_api_request(api_endpoint)
+
+            if forums is not None:  # Check if request was successful (forums can be an empty list)
+                if forums:  # If posts list is not empty
+                    st.success(f"✅ Found {len(forums)} forum(s) with at least {min_members_input} interested members in tagClass '{tagclass_input}':")
+                    display_forums = []
+                    for forum in forums:
+                        display_forums.append({
+                            "Forum ID": forum.get("id"),
+                            "Title": forum.get("title", "N/A"),
+                            "Creation Date": forum.get("creationDate", "N/A"),
+                            "Moderator Person ID": forum.get("ModeratorPersonId", "N/A"),
+                            "Interested Members": forum.get("interested_members", "N/A")
+                        })
+
+                    df = pd.DataFrame(display_forums)
+                    st.dataframe(df, use_container_width=True)
+                else:  # posts is an empty list
+                    st.warning(
+                        f"🤷  No forums found with at least {min_members_input} interested members in tagClass '{tagclass_input}'."
+                    )
+            # Error handling (including 404 for "Person not found") is done within make_api_request.
+        else:
+            st.warning("Doh! Please enter a tag class to search.")
