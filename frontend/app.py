@@ -1,12 +1,12 @@
 import streamlit as st
 import requests
-import json  # Not strictly used for display here, but good to have if needed for raw JSON later
+import json
 import pandas as pd
 import datetime  # For year input default
+import urllib.parse  # For URL encoding company name if needed
 
 # --- CONFIGURATION ---
-# Ensure this matches the port your FastAPI app is running on.
-FASTAPI_BASE_URL = "http://localhost:8000"  # Or your actual FastAPI URL
+FASTAPI_BASE_URL = "http://localhost:8000"  # Assicurati che corrisponda
 
 st.set_page_config(page_title="Progetto MAADB", layout="wide")
 st.title("📊 Progetto MAADB Dashboard")
@@ -19,15 +19,16 @@ action_options = [
     "Neo4j Actions",
     "PostgreSQL Actions",
     "Find Posts by Email",
-    "Find Groups by Work & Forum",
-    "Find Most Used Tags by City Interest"  # New Action
+    "Find Groups by Work & Forum",  # General search
+    "Find Groups for Specific Company",  # Specific company search
+    "Find Most Used Tags by City Interest"  # User's new action
 ]
-# Update default_index if you want this new one to be default for testing
+
+# Default to the specific company search for easier testing, or adjust as needed
 try:
-    # default_index = action_options.index("Find Groups by Work & Forum")
-    default_index = action_options.index("Find Most Used Tags by City Interest") # Default to new query
+    default_index = action_options.index("Find Groups for Specific Company")
 except ValueError:
-    default_index = 0
+    default_index = 0  # Fallback a Home se non trovata
 
 action = st.sidebar.selectbox(
     "Select an action",
@@ -41,18 +42,17 @@ def make_api_request(endpoint: str, method: str = "GET", params: dict = None, da
     """Helper function to make API requests and handle common errors."""
     url = f"{FASTAPI_BASE_URL}{endpoint}"
     try:
-        # For GET requests with params, requests library handles URL encoding
         log_params = params if params else "{}"
         st.info(f"⏳ Querying API: {method} {url} with params: {log_params}")
         if method == "GET":
             response = requests.get(url, params=params)
         elif method == "POST":
-            response = requests.post(url, params=params, json=data)  # For POST, data is usually in json body
+            response = requests.post(url, params=params, json=data)
         else:
             st.error(f"Unsupported HTTP method: {method}")
             return None
 
-        response.raise_for_status()  # Raise an exception for HTTP errors (4xx or 5xx)
+        response.raise_for_status()
         return response.json()
 
     except requests.exceptions.HTTPError as e:
@@ -60,16 +60,16 @@ def make_api_request(endpoint: str, method: str = "GET", params: dict = None, da
         try:
             error_detail = e.response.json().get("detail", e.response.text)
             st.error(f"{error_message} - Detail: {error_detail}")
-        except json.JSONDecodeError:  # If error response is not JSON
+        except json.JSONDecodeError:
             st.error(f"{error_message} - Server Response: {e.response.text}")
     except requests.exceptions.ConnectionError:
         st.error(
             f"🔌 Connection Error: Could not connect to the FastAPI backend at {FASTAPI_BASE_URL}. "
             f"Is it running and accessible?")
-    except json.JSONDecodeError:  # If successful response is not valid JSON
+    except json.JSONDecodeError:
         st.error("Error: Invalid JSON response from the server.")
     except Exception as e:
-        st.error(f"An unexpected error occurred: {e}")
+        st.error(f"An unexpected error occurred: {type(e).__name__}: {e}")
     return None
 
 
@@ -100,7 +100,6 @@ elif action == "MongoDB Actions":
                 for collection, data_list in results.items():
                     st.subheader(f"Collection: {collection}")
                     if data_list:
-                        # ObjectId conversion if necessary (though your backend might handle it)
                         for item in data_list:
                             if '_id' in item and isinstance(item['_id'], dict) and '$oid' in item['_id']:
                                 item['_id'] = item['_id']['$oid']
@@ -190,51 +189,49 @@ elif action == "Find Posts by Email":
 elif action == "Find Groups by Work & Forum":
     st.header("👥 Find Groups by Shared Work & Forum")
     st.markdown("""
-    Finds groups of people (2 or more) who work at the same company (having started in or before the target year) 
-    and are members of the same forum.
+    Finds groups of people (2 or more) across all companies who:
+    1. Work at the same company, having started in or before the `target_year`.
+    2. Are members of the same forum.
     """)
 
     current_year = datetime.datetime.now().year
-    target_year_input = st.number_input(
+    target_year_input_general = st.number_input(
         "Enter Target Year (worked since this year or earlier):",
         min_value=1900,
-        max_value=current_year + 5,  # Allow a bit into the future if needed
-        value=2009,  # Default to a year we know has data from tests
+        max_value=current_year + 5,
+        value=2009,
         step=1,
         format="%d",
-        key="group_target_year"
+        key="general_group_target_year"
     )
 
-    limit_input = st.number_input(
+    limit_input_general = st.number_input(
         "Maximum number of groups to return:",
         min_value=1,
-        max_value=100000,  # A reasonable upper bound for UI display
-        value=2000,  # Default limit for display
+        max_value=1000,
+        value=20,
         step=5,
         format="%d",
-        key="group_limit"
+        key="general_group_limit"
     )
 
-    if st.button("Find Groups 🔎", key="find_groups_btn"):
-        if target_year_input:
-            api_endpoint = f"/groups/by-work-and-forum/{target_year_input}"
-            # Pass the limit as a query parameter
-            api_params = {"limit": limit_input}
+    if st.button("Find Groups 🔎", key="find_groups_general_btn"):
+        if target_year_input_general:
+            api_endpoint = f"/groups/by-work-and-forum/{target_year_input_general}"
+            api_params = {"limit": limit_input_general}
 
             groups_result = make_api_request(api_endpoint, params=api_params)
 
-            if groups_result is not None:  # Check if API call itself was successful (returned data or empty list)
-                if groups_result:  # If the list of groups is not empty
+            if groups_result is not None:
+                if groups_result:
                     st.success(
-                        f"Found {len(groups_result)} group(s) for target year {target_year_input} (limit: {limit_input}):")
-
+                        f"Found {len(groups_result)} group(s) for target year {target_year_input_general} (limit: {limit_input_general}):")
                     for i, group in enumerate(groups_result):
                         company_name = group.get("companyName", "N/A")
                         company_id = group.get("companyId", "N/A")
                         forum_title = group.get("forumTitle", "N/A")
                         forum_id = group.get("forumId", "N/A")
                         members = group.get("members", [])
-
                         expander_title = (
                             f"Group {i + 1}: Company '{company_name}' (ID: {company_id}) & "
                             f"Forum '{forum_title}' (ID: {forum_id}) - {len(members)} member(s)"
@@ -247,26 +244,109 @@ elif action == "Find Groups by Work & Forum":
                                         "Person ID": member.get("id"),
                                         "First Name": member.get("firstName"),
                                         "Last Name": member.get("lastName"),
-                                        "Email(s)": ", ".join(member.get("email", []))  # Join list of emails
+                                        "Email(s)": ", ".join(member.get("email", []))
                                     })
-
                                 member_df_columns = ["Person ID", "First Name", "Last Name", "Email(s)"]
                                 member_df = pd.DataFrame(member_data_for_df, columns=member_df_columns)
                                 st.dataframe(member_df, use_container_width=True)
 
-                                if st.checkbox(f"Show raw JSON for Group {i + 1}", key=f"show_raw_json_group_{i}"):
-                                    st.json(group)
                             else:
-                                # This case should ideally not happen if backend logic ensures groups have >1 member
-                                st.write("No members listed for this group (though the group itself was identified).")
-                else:  # API returned an empty list
+                                st.write("No members listed for this group.")
+                else:
                     st.info(
-                        f"No groups found matching the criteria for target year {target_year_input} (limit: {limit_input}).")
-            # Error messages from make_api_request (like connection errors or 500s) are handled by the helper.
+                        f"No groups found matching the criteria for target year {target_year_input_general} (limit: {limit_input_general}).")
         else:
             st.warning("Please enter a target year.")
 
-elif action == "Find Most Used Tags by City Interest":
+elif action == "Find Groups for Specific Company":  # This is now a distinct top-level elif
+    st.header("🏢 Find Groups for a Specific Company")
+    st.markdown("""
+    For a given company name and target year, find groups of employees 
+    (2 or more) who started by that year and also share the same forum.
+    """)
+
+    company_name_input = st.text_input(
+        "Enter Company Name:",
+        placeholder="e.g., Innovatech Solutions",  # Or a name from your dataset
+        key="specific_company_name_input"  # Made key more specific
+    )
+
+    current_year_specific = datetime.datetime.now().year
+    target_year_input_specific = st.number_input(
+        "Enter Target Year (worked at this company since this year or earlier):",
+        min_value=1900,
+        max_value=current_year_specific + 5,
+        value=2009,
+        step=1,
+        format="%d",
+        key="specific_company_target_year_input"  # Made key more specific
+    )
+
+    limit_input_specific = st.number_input(
+        "Maximum number of forum groups to return for this company:",
+        min_value=1,
+        max_value=1000,
+        value=20,
+        step=5,
+        format="%d",
+        key="specific_company_limit_input"  # Made key more specific
+    )
+
+    if st.button("Find Groups for Company 🔎", key="find_groups_specific_company_btn"):
+        if not company_name_input:
+            st.warning("Please enter a Company Name.")
+        elif not target_year_input_specific:
+            st.warning("Please enter a Target Year.")
+        else:
+            encoded_company_name = urllib.parse.quote(company_name_input)
+            api_endpoint = f"/groups/by-company/{encoded_company_name}/year/{target_year_input_specific}"
+            api_params = {"limit": limit_input_specific}
+
+            groups_result_specific = make_api_request(api_endpoint, params=api_params)
+
+            if groups_result_specific is not None:
+                if groups_result_specific:
+                    st.success(
+                        f"Found {len(groups_result_specific)} forum group(s) for company '{company_name_input}', "
+                        f"target year {target_year_input_specific} (limit: {limit_input_specific}):"
+                    )
+                    for i, group in enumerate(groups_result_specific):
+                        # company_name is already known from input, or can be taken from group.get("companyName")
+                        company_id = group.get("companyId", "N/A")
+                        forum_title = group.get("forumTitle", "N/A")
+                        forum_id = group.get("forumId", "N/A")
+                        members = group.get("members", [])
+
+                        expander_title = (
+                            f"Forum Group {i + 1} for '{group.get('companyName', company_name_input)}': "
+                            f"Forum '{forum_title}' (ID: {forum_id}) - {len(members)} member(s)"
+                        )
+                        with st.expander(expander_title):
+                            if members:
+                                member_data_for_df = []
+                                for member in members:
+                                    member_data_for_df.append({
+                                        "Person ID": member.get("id"),
+                                        "First Name": member.get("firstName"),
+                                        "Last Name": member.get("lastName"),
+                                        "Email(s)": ", ".join(member.get("email", []))
+                                    })
+                                member_df_columns = ["Person ID", "First Name", "Last Name", "Email(s)"]
+                                member_df = pd.DataFrame(member_data_for_df, columns=member_df_columns)
+                                st.dataframe(member_df, use_container_width=True)
+
+                            else:
+                                st.write("No members listed for this forum group.")
+                else:
+                    st.info(
+                        f"No forum groups with 2+ common members found for company '{company_name_input}' "
+                        f"and target year {target_year_input_specific} (limit: {limit_input_specific}). "
+                        f"The company might exist and have employees meeting the year criteria, "
+                        f"but they do not form groups of 2+ members in the same forum."
+                    )
+            # If groups_result_specific is None, make_api_request has already shown an error (e.g., 404, 500)
+
+elif action == "Find Most Used Tags by City Interest":  # User's new action from their uploaded file
     st.header("🏷️ Find Most Used Tags by City (User Interest)")
     st.markdown("""
     Given a user's email, this query finds their city. Then, it identifies the tags
@@ -290,30 +370,36 @@ elif action == "Find Most Used Tags by City Interest":
 
     if st.button("Find Tags 🔎", key="q7_find_tags_btn"):
         if user_email_input:
+            # Assuming the endpoint is /tags/most-used-by-city-interest/{user_email_input}
+            # This endpoint needs to be defined in your FastAPI backend
             api_endpoint = f"/tags/most-used-by-city-interest/{user_email_input}"
             api_params = {"top_n": top_n_input}
 
             response_data = make_api_request(api_endpoint, params=api_params)
 
-            if response_data:
+            if response_data:  # Check if response_data is not None (i.e., API call didn't fail critically)
                 message = response_data.get("message")
                 tags_list = response_data.get("tags", [])
                 city_name_from_response = response_data.get('city_name')
                 city_info_display = f"(City: {city_name_from_response})" if city_name_from_response else "(City information not available)"
 
-                if message:
+                if message:  # Display message if present
+                    # Check for specific error messages or conditions
                     if not tags_list and (
-                            "not found" in message.lower() or "no other persons" in message.lower() or "no tags found" in message.lower()):
+                            "not found" in message.lower() or
+                            "no other persons" in message.lower() or
+                            "no tags found" in message.lower() or
+                            "does not have a specified city" in message.lower()
+                    ):
                         st.warning(f"{message} {city_info_display}")
-                    elif not tags_list and "error occurred" in message.lower():
+                    elif not tags_list and "error occurred" in message.lower():  # Generic error from API
                         st.error(f"{message} {city_info_display}")
-                    else:
+                    else:  # General informational message
                         st.info(f"{message} {city_info_display}")
 
-                if tags_list:
+                if tags_list:  # If tags were found and returned
                     st.success(f"Found {len(tags_list)} tag(s) for user '{user_email_input}' in {city_info_display}:")
 
-                    # Prepare data for DataFrame
                     df_data = []
                     for tag_item in tags_list:
                         df_data.append({
@@ -324,7 +410,6 @@ elif action == "Find Most Used Tags by City Interest":
                         })
                     df = pd.DataFrame(df_data)
 
-                    # Display DataFrame with column configuration for URL
                     st.dataframe(
                         df,
                         column_config={
@@ -336,10 +421,9 @@ elif action == "Find Most Used Tags by City Interest":
                         use_container_width=True,
                         hide_index=True
                     )
-                elif not message:
+                elif not message and not tags_list:  # No message and no tags, a less common case
                     st.info(f"No tags found {city_info_display} and no specific message from API.")
 
-                if st.checkbox("Show raw API response JSON", key="q7_show_raw_json"):
-                    st.json(response_data)
+
         else:
             st.warning("Please enter a user email address.")
