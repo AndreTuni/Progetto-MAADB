@@ -3,6 +3,7 @@ import requests
 import json  # Not strictly used for display here, but good to have if needed for raw JSON later
 import pandas as pd
 import datetime  # For year input default
+import altair as alt
 
 # --- CONFIGURATION ---
 # Ensure this matches the port your FastAPI app is running on.
@@ -200,6 +201,18 @@ elif action == "Forum of a Person":
                     st.success(f"✅ Found {len(forums)} forum(s) linked to '{input}':")
                     df = pd.DataFrame(forums)
                     st.dataframe(df, use_container_width=True)
+                    st.write(" ")
+                    if not df.empty:
+                        chart = alt.Chart(df).mark_bar().encode(
+                            x=alt.X("forum_id:N", title="Forum ID"),
+                            y=alt.Y("member_count:Q", title="Member Count"),
+                            tooltip=["forum_id", "member_count", "title"]
+                        ).properties(
+                            title="📊 Member Count per Forum",
+                            width=600,
+                            height=400
+                        )
+                        st.altair_chart(chart, use_container_width=True)
                 else:
                     st.warning(f"No forums found for user '{input}'.")
         else:
@@ -477,6 +490,27 @@ elif action == "Common Interests":
                     st.success(f"✅ Found {len(results)} the top 10 most used tags by people who work or study in the same organsation:")
                     df = pd.DataFrame(results)
                     st.dataframe(df, use_container_width=True)
+                    st.write(" ")
+                    # Pie chart if data is present
+                    if "usage_count" in df.columns and not df.empty:
+                        df["usage_count"] = pd.to_numeric(df["usage_count"], errors="coerce").fillna(0)
+                        df["percent"] = df["usage_count"] / df["usage_count"].sum()
+
+                        pie_chart = alt.Chart(df).mark_arc().encode(
+                            theta=alt.Theta(field="usage_count", type="quantitative"),
+                            color=alt.Color(field="tag_name", type="nominal"),
+                            tooltip=[
+                                alt.Tooltip("tag_name:N", title="Tag"),
+                                alt.Tooltip("usage_count:Q", title="Usage Count"),
+                                alt.Tooltip("percent:Q", format=".1%", title="Percentage")
+                            ]
+                        ).properties(
+                            title="📊 Tag Usage Distribution (Pie Chart)",
+                            width=400,
+                            height=400
+                        )
+
+                        st.altair_chart(pie_chart, use_container_width=True)
                 else:
                     st.warning(f"No matching results found for user '{input}'.")
         else:

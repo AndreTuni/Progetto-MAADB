@@ -14,6 +14,7 @@ from models.query_3.model import FullResponseItem
 from models.query_4.model import GroupDetail, MemberInfo
 from models.query_5.model import SecondDegreeCommentResponse
 from typing import List, Optional
+import math
 
 
 router = APIRouter()
@@ -107,6 +108,7 @@ async def get_forums_by_user_email(
                 "membership_creation_date": membership_dates.get(fid),
                 "member_count": member_counts.get(fid, 0)
             })
+        results.sort(key=lambda x: x["membership_creation_date"])
         return results
 
     except Exception as e:
@@ -404,6 +406,13 @@ async def get_second_degree_commenters_on_liked_posts(
         posts = await db.post.find({"id": {"$in": post_ids_set}}).to_list(length=None)
         post_map = {post["id"]: post for post in posts}
 
+        def is_empty(value):
+            return (
+                value is None or 
+                value == "" or 
+                (isinstance(value, float) and math.isnan(value))
+            )
+
         # Retrieve persons once
         commenter_ids = list(set(comment["CreatorPersonId"] for comment in comments))
         people = await db.person.find({"id": {"$in": commenter_ids}}).to_list(length=None)
@@ -414,9 +423,17 @@ async def get_second_degree_commenters_on_liked_posts(
             post_id = comment["ParentPostId"]
             post = post_map.get(post_id)
             person_name = person_map.get(commenter_id, "Unknown")
+            content = post.get("content")
+            image = post.get("imageFile")
+            if is_empty(content) and not is_empty(image):
+                post_content = image
+            elif not is_empty(content):
+                post_content = content
+            else:
+                post_content = None
             results.append({
                 "post_id": post_id,
-                "post_content": post.get("content") if post else None,
+                "post_content": post_content,
                 "second_person_name": person_name,
                 "comment_content": comment.get("content"),
             })
