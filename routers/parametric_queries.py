@@ -210,141 +210,140 @@ def get_neo4j_results(tx, query, params):
 
 # --- 4. Endpoint for finding Find Groups by Work & Forum ---
 @router.get(
-    "/groups/by-work-and-forum/{target_year}",
+    "/groups/by-company/{company_name}/year/{target_year}",  # URL più RESTful
     response_model=List[GroupDetail],
-    summary="Find groups of people by shared company (since year) and forum",
-    tags=["Complex Queries"]
+    summary="Trova gruppi di persone per specifica azienda (da anno) e forum condiviso",
+    tags=["Complex Queries - Specific Company"]
 )
-async def find_groups_by_work_and_forum(
-        target_year: int = Path(..., description="Target year (e.g., people working since this year or earlier).",
+async def find_groups_for_specific_company(
+        company_name: str = Path(..., description="Il nome dell'azienda da cercare."),
+        target_year: int = Path(...,
+                                description="Anno di riferimento (es. persone che lavorano da quest'anno o prima).",
                                 ge=1900, le=2100),
-        limit: Optional[int] = Query(100, description="Maximum number of groups to return.", ge=1, le=100000),
-        # ADDED limit parameter
+        limit: Optional[int] = Query(50, description="Numero massimo di gruppi forum da restituire per questa azienda.",
+                                     ge=1, le=1000),
         pg_conn: psycopg2.extensions.connection = Depends(get_db_connection)
 ):
-    print(f"DEBUG: Entered find_groups_by_work_and_forum for target_year: {target_year}, limit: {limit}")
-    # Using the two-stage query that worked well without indexes
-    cypher_query = """
-    MATCH (person:Person)-[workRel:WORK_AT]->(company:Company),
+
+    company_psql_id = None
+    # Passaggio 1: Risolvere il Nome dell'Azienda in ID (PostgreSQL)
+    try:
+        with pg_conn.cursor(cursor_factory=DictCursor) as cursor:
+            cursor.execute("SELECT id FROM organization WHERE name = %s", (company_name,))
+            company_row = cursor.fetchone()
+            if company_row:
+                company_psql_id = company_row["id"]
+            else:
+                # Come concordato, restituisco 404 se l'azienda non viene trovata
+                raise HTTPException(status_code=404, detail=f"Azienda con nome '{company_name}' non trovata.")
+        pg_conn.commit()  # Commit dopo la lettura, buona pratica
+    except psycopg2.Error as e:
+        print(f"ERROR: Errore PostgreSQL durante la ricerca dell'ID azienda '{company_name}': {e}")
+        if pg_conn: pg_conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Errore database durante la ricerca dell'azienda: {e}")
+
+    # Passaggio 2: Eseguire la Query Neo4j Mirata
+    # Usiamo la query a due stadi che ha funzionato bene senza indici problematici
+    # ma ora filtrata per $companyIdParam
+    cypher_query_specific_company = """
+    MATCH (person:Person)-[workRel:WORK_AT]->(company:Company {id: $companyIdParam}),
           (person)-[:MEMBER_OF]->(forum:Forum)
-    WHERE workRel.workFrom IS NOT NULL AND workRel.workFrom <= $targetYear 
-    WITH company, forum, count(person) AS groupSizeCalc 
+    WHERE workRel.workFrom IS NOT NULL AND workRel.workFrom <= $targetYear
+    WITH company, forum, count(person) AS groupSizeCalc
     WHERE groupSizeCalc > 1
 
-    MATCH (p:Person)-[w:WORK_AT]->(company), 
+    MATCH (p:Person)-[w:WORK_AT]->(company), // company è già filtrata per id
           (p)-[:MEMBER_OF]->(forum)
-    WHERE w.workFrom IS NOT NULL AND w.workFrom <= $targetYear 
-    WITH company, forum, collect(p.id) AS personMongoIds // Removed groupSizeCalc from here as it's not strictly needed for RETURN
-    ORDER BY company.id, forum.id // For stable pagination with LIMIT
-    RETURN company.id AS companyPsqlId,
+    WHERE w.workFrom IS NOT NULL AND w.workFrom <= $targetYear
+    WITH company, forum, collect(p.id) AS personMongoIds // groupSizeCalc non serve più qui
+    ORDER BY forum.id // Ordina per ID del forum per risultati consistenti
+    RETURN company.id AS companyPsqlId, // Sarà sempre $companyIdParam
            forum.id AS forumMongoId,
            personMongoIds
-    LIMIT $limitParam // ADDED LIMIT clause
+    LIMIT $limitParam
     """
-    neo4j_params = {"targetYear": target_year, "limitParam": limit}  # ADDED limitParam to params
-    groups_data = []
+    neo4j_params = {
+        "companyIdParam": company_psql_id,
+        "targetYear": target_year,
+        "limitParam": limit
+    }
+
+    final_group_details_specific = []
 
     try:
-        print("DEBUG: Attempting Neo4j query...")
         with driver.session(database="neo4j") as session:
-            raw_groups = session.read_transaction(get_neo4j_results, cypher_query, neo4j_params)
-        print(f"DEBUG: Neo4j query returned {len(raw_groups)} raw groups.")  # Simplified log for potentially large list
-        if len(raw_groups) > 0 and len(raw_groups) < 10:  # Log sample if small
-            print(f"DEBUG: Sample raw_groups: {raw_groups[:3]}")
+            raw_groups_from_neo4j = session.read_transaction(get_neo4j_results, cypher_query_specific_company,
+                                                             neo4j_params)
 
-        if not raw_groups:
-            print("DEBUG: No raw groups found from Neo4j. Committing PG and returning empty list.")
-            pg_conn.commit()
-            return []
+        if not raw_groups_from_neo4j:
+            return []  # Nessun gruppo trovato per questa azienda/anno/forum combinazione
 
-        print(f"DEBUG: Processing {len(raw_groups)} groups...")
-        for i, group_info in enumerate(raw_groups):
-            # print(f"DEBUG: Processing group {i+1}/{len(raw_groups)}: {group_info}") # Can be verbose
-            company_psql_id = group_info["companyPsqlId"]
-            forum_mongo_id = group_info["forumMongoId"]
-            person_mongo_ids = group_info["personMongoIds"]
+        # Passaggi 3, 4, 5: Preparazione e Recupero Batch dei Dettagli (Forum e Persone)
+        # L'ID dell'azienda è già noto (company_psql_id), e il nome è company_name (dall'input)
 
-            # print(f"DEBUG: Group {i+1} - CompanyPSQLID: {company_psql_id}, ForumMongoID: {forum_mongo_id}, PersonMongoIDs count: {len(person_mongo_ids)}")
+        all_forum_ids = list(set(g["forumMongoId"] for g in raw_groups_from_neo4j))
+        all_person_ids_flat = list(set(pid for g in raw_groups_from_neo4j for pid in g["personMongoIds"]))
 
-            if not person_mongo_ids:
-                # print(f"DEBUG: Group {i+1} - Skipping due to no personMongoIds.")
-                continue
 
-            company_name = "Unknown Company"
-            try:
-                # print(f"DEBUG: Group {i+1} - Querying PostgreSQL for company ID: {company_psql_id}")
-                with pg_conn.cursor(cursor_factory=DictCursor) as cursor:
-                    cursor.execute("SELECT name FROM organization WHERE id = %s", (company_psql_id,))
-                    company_result = cursor.fetchone()
-                if company_result:
-                    company_name = company_result["name"]
-                    # print(f"DEBUG: Group {i+1} - Found company name: '{company_name}'")
-                else:
-                    print(f"Warning: Group {i + 1} - Company with ID {company_psql_id} not found in PostgreSQL.")
-            except psycopg2.Error as e:
-                print(f"ERROR: Group {i + 1} - PostgreSQL error fetching company ID {company_psql_id} (psycopg2): {e}")
-                pg_conn.rollback()
+        forum_details_map = {}
+        if all_forum_ids:
+            forum_cursor = db.forum.find({"id": {"$in": all_forum_ids}}, {"id": 1, "title": 1})
+            async for forum_doc in forum_cursor:
+                forum_details_map[forum_doc["id"]] = forum_doc.get("title", "Forum Sconosciuto")
 
-            forum_title = "Unknown Forum"
-            # print(f"DEBUG: Group {i+1} - Querying MongoDB for forum ID: {forum_mongo_id}")
-            forum_doc = await db.forum.find_one({"id": forum_mongo_id}, {"title": 1})
-            if forum_doc:
-                forum_title = forum_doc.get("title", "Unknown Forum")
-                # print(f"DEBUG: Group {i+1} - Found forum title: '{forum_title}'")
-            else:
-                print(f"Warning: Group {i + 1} - Forum with ID {forum_mongo_id} not found in MongoDB.")
-
-            member_details_list = []
-            # print(f"DEBUG: Group {i+1} - Querying MongoDB for {len(person_mongo_ids)} person details...")
-            persons_cursor = db.person.find(
-                {"id": {"$in": person_mongo_ids}},
+        person_details_map = {}
+        if all_person_ids_flat:
+            person_cursor = db.person.find(
+                {"id": {"$in": all_person_ids_flat}},
                 {"id": 1, "firstName": 1, "lastName": 1, "email": 1, "_id": 0}
             )
-            async for person_doc in persons_cursor:
-                member_details_list.append(MemberInfo(**person_doc))
-            # print(f"DEBUG: Group {i+1} - Found {len(member_details_list)} member details from MongoDB.")
+            async for person_doc in person_cursor:
+                person_details_map[person_doc["id"]] = MemberInfo(**person_doc)
 
-            if member_details_list:
-                groups_data.append(
-                    GroupDetail(
-                        companyId=company_psql_id,
-                        companyName=company_name,
-                        forumId=forum_mongo_id,
-                        forumTitle=forum_title,
-                        members=member_details_list,
-                    )
-                )
-                # print(f"DEBUG: Group {i+1} - Added to final groups_data.")
-            # else:
-            # print(f"DEBUG: Group {i+1} - No member details found, group not added (Person IDs: {person_mongo_ids}).")
+        # Assemblaggio Risultati Finali
+        for group_skeleton in raw_groups_from_neo4j:
+            # company_id_from_skel = group_skeleton["companyPsqlId"] # Dovrebbe corrispondere a company_psql_id
+            forum_id = group_skeleton["forumMongoId"]
 
-        print("DEBUG: All groups processed. Committing PG.")
-        pg_conn.commit()
+            # Usiamo il company_name fornito in input per coerenza
+            forum_title = forum_details_map.get(forum_id, "Forum Sconosciuto")
 
+            current_members_info = []
+            for person_id in group_skeleton["personMongoIds"]:
+                member_info = person_details_map.get(person_id)
+                if member_info:
+                    current_members_info.append(member_info)
+
+            if current_members_info:  # Dovrebbe sempre essere vero data la logica della query Neo4j
+                final_group_details_specific.append(GroupDetail(
+                    companyId=company_psql_id,  # Usiamo l'ID dell'azienda verificato
+                    companyName=company_name,  # Usiamo il nome dell'azienda fornito in input
+                    forumId=forum_id,
+                    forumTitle=forum_title,
+                    members=current_members_info
+                ))
+
+    # Gestione errori specifici per le operazioni del database in questo endpoint
+    except HTTPException:  # Riaumenta le HTTPException già sollevate (es. 404)
+        raise
+    except psycopg2.Error as e:
+        print(f"ERROR: Errore PostgreSQL nell'endpoint specifico per azienda: {e}")
+        # pg_conn è già gestito dal dependency injection per commit/rollback generale
+        raise HTTPException(status_code=500, detail=f"Errore database PostgreSQL: {e}")
     except ServiceUnavailable as e:
         print(f"ERROR: Neo4j service unavailable: {e}")
-        if pg_conn: pg_conn.rollback()
-        raise HTTPException(status_code=503, detail=f"Neo4j service unavailable: {e}")
+        raise HTTPException(status_code=503, detail=f"Servizio Neo4j non disponibile: {e}")
     except ClientError as e:
         print(f"ERROR: Neo4j client error: {e}")
-        if pg_conn: pg_conn.rollback()
-        raise HTTPException(status_code=500, detail=f"Neo4j client error: {e}")
+        raise HTTPException(status_code=500, detail=f"Errore client Neo4j: {e}")
     except ConnectionFailure as e:
         print(f"ERROR: MongoDB connection error: {e}")
-        if pg_conn: pg_conn.rollback()
-        raise HTTPException(status_code=503, detail=f"MongoDB connection error: {e}")
-    except psycopg2.Error as e:
-        print(f"ERROR: PostgreSQL (psycopg2) database error: {e}")
-        if pg_conn: pg_conn.rollback()
-        raise HTTPException(status_code=500, detail=f"PostgreSQL (psycopg2) database error: {e}")
+        raise HTTPException(status_code=503, detail=f"Errore connessione MongoDB: {e}")
     except Exception as e:
-        print(
-            f"ERROR: An unexpected error occurred in find_groups_by_work_and_forum (psycopg2): {type(e).__name__} - {str(e)}")
-        if pg_conn: pg_conn.rollback()
-        raise HTTPException(status_code=500, detail=f"An unexpected server error occurred (psycopg2): {str(e)}")
+        print(f"ERROR: Errore inatteso in find_groups_for_specific_company: {type(e).__name__} - {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Errore server inatteso: {str(e)}")
 
-    print(f"DEBUG: Returning {len(groups_data)} groups from endpoint.")
-    return groups_data
+    return final_group_details_specific
 
 
 # --- 5. Endpoint for finding 2nd-degree connections who commented on posts liked by a user ---

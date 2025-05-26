@@ -4,6 +4,8 @@ import json  # Not strictly used for display here, but good to have if needed fo
 import pandas as pd
 import datetime  # For year input default
 import altair as alt
+import urllib.parse  # For URL encoding company name if needed
+
 
 # --- CONFIGURATION ---
 # Ensure this matches the port your FastAPI app is running on.
@@ -61,7 +63,7 @@ elif main_menu == "⚙️ Parametric Queries":
         "Post of a Person",
         "Forum of a Person",
         "Friends who Comment",
-        "Colleagues in same Forum",
+        "Find Groups for Specific Company",
         "Active second-degree Connections",
     ])
     st.subheader(f"⚙️ Action: {action}")
@@ -157,7 +159,7 @@ elif action == "Post of a Person":
     if st.button("Search Posts 🚀"):
         if email_input:
             # The endpoint path in FastAPI is /by-email/{user_email}
-            # The FASTAPI_BASE_URL (http://localhost:8000) is prepended by make_api_request
+            # The FASTAPI_BASE_URL (http://localhost:8001) is prepended by make_api_request
             api_endpoint = f"/by-email/{email_input}"
 
             posts = make_api_request(api_endpoint)
@@ -226,7 +228,7 @@ elif action == "Friends who Comment":
 
     if st.button("Search Persons 🚀"):
         if target_email:
-            # The FASTAPI_BASE_URL (http://localhost:8000) is prepended by make_api_request
+            # The FASTAPI_BASE_URL (http://localhost:8001) is prepended by make_api_request
             api_endpoint = f"/find-person/by-email/{target_email}"
 
             results = make_api_request(api_endpoint)
@@ -277,55 +279,66 @@ elif action == "Friends who Comment":
 
 
 # --- 4. Find Colleagues in same Forum ---
-elif action == "Colleagues in same Forum":
+elif action == "Find Groups for Specific Company":  # This is now a distinct top-level elif
     st.markdown("""
-                ℹ️ This query allows you to find Finds groups of people (2 or more) who work at the same company (having started in or before the target year) 
-                and are members of the same forum.
-                """)
+    ℹ️ This query allows you to find, for a given company name and target year, groups of employees 
+    (2 or more) who started by that year and also share the same forum.
+    """)
 
-    current_year = datetime.datetime.now().year
-    target_year_input = st.number_input(
-        "Enter Target Year (worked since this year or earlier):",
+    company_name_input = st.text_input(
+        "Enter Company Name:",
+        placeholder="e.g., Innovatech Solutions",  # Or a name from your dataset
+        key="specific_company_name_input"  # Made key more specific
+    )
+
+    current_year_specific = datetime.datetime.now().year
+    target_year_input_specific = st.number_input(
+        "Enter Target Year (worked at this company since this year or earlier):",
         min_value=1900,
-        max_value=current_year + 5,  # Allow a bit into the future if needed
-        value=2009,  # Default to a year we know has data from tests
+        max_value=current_year_specific + 5,
+        value=2009,
         step=1,
         format="%d",
-        key="group_target_year"
+        key="specific_company_target_year_input"  # Made key more specific
     )
 
-    limit_input = st.number_input(
-        "Maximum number of groups to return:",
+    limit_input_specific = st.number_input(
+        "Maximum number of forum groups to return for this company:",
         min_value=1,
-        max_value=100000,  # A reasonable upper bound for UI display
-        value=2000,  # Default limit for display
+        max_value=1000,
+        value=20,
         step=5,
         format="%d",
-        key="group_limit"
+        key="specific_company_limit_input"  # Made key more specific
     )
 
-    if st.button("Find Groups 🔎", key="find_groups_btn"):
-        if target_year_input:
-            api_endpoint = f"/groups/by-work-and-forum/{target_year_input}"
-            # Pass the limit as a query parameter
-            api_params = {"limit": limit_input}
+    if st.button("Find Groups for Company 🔎", key="find_groups_specific_company_btn"):
+        if not company_name_input:
+            st.warning("Please enter a Company Name.")
+        elif not target_year_input_specific:
+            st.warning("Please enter a Target Year.")
+        else:
+            encoded_company_name = urllib.parse.quote(company_name_input)
+            api_endpoint = f"/groups/by-company/{encoded_company_name}/year/{target_year_input_specific}"
+            api_params = {"limit": limit_input_specific}
 
-            groups_result = make_api_request(api_endpoint, params=api_params)
+            groups_result_specific = make_api_request(api_endpoint, params=api_params)
 
-            if groups_result is not None:  # Check if API call itself was successful (returned data or empty list)
-                if groups_result:  # If the list of groups is not empty
+            if groups_result_specific is not None:
+                if groups_result_specific:
                     st.success(
-                        f"Found {len(groups_result)} group(s) for target year {target_year_input} (limit: {limit_input}):")
-
-                    for i, group in enumerate(groups_result):
-                        company_name = group.get("companyName", "N/A")
+                        f"Found {len(groups_result_specific)} forum group(s) for company '{company_name_input}', "
+                        f"target year {target_year_input_specific} (limit: {limit_input_specific}):"
+                    )
+                    for i, group in enumerate(groups_result_specific):
+                        # company_name is already known from input, or can be taken from group.get("companyName")
                         company_id = group.get("companyId", "N/A")
                         forum_title = group.get("forumTitle", "N/A")
                         forum_id = group.get("forumId", "N/A")
                         members = group.get("members", [])
 
                         expander_title = (
-                            f"Group {i + 1}: Company '{company_name}' (ID: {company_id}) & "
+                            f"Forum Group {i + 1} for '{group.get('companyName', company_name_input)}': "
                             f"Forum '{forum_title}' (ID: {forum_id}) - {len(members)} member(s)"
                         )
                         with st.expander(expander_title):
@@ -336,20 +349,22 @@ elif action == "Colleagues in same Forum":
                                         "Person ID": member.get("id"),
                                         "First Name": member.get("firstName"),
                                         "Last Name": member.get("lastName"),
-                                        "Email(s)": ", ".join(member.get("email", []))  # Join list of emails
+                                        "Email(s)": ", ".join(member.get("email", []))
                                     })
-
                                 member_df_columns = ["Person ID", "First Name", "Last Name", "Email(s)"]
                                 member_df = pd.DataFrame(member_data_for_df, columns=member_df_columns)
                                 st.dataframe(member_df, use_container_width=True)
+
                             else:
-                                st.write("No members listed for this group (though the group itself was identified).")
-                else:  # API returned an empty list
+                                st.write("No members listed for this forum group.")
+                else:
                     st.info(
-                        f"No groups found matching the criteria for target year {target_year_input} (limit: {limit_input}).")
-            # Error messages from make_api_request (like connection errors or 500s) are handled by the helper.
-        else:
-            st.warning("Please enter a target year.")
+                        f"No forum groups with 2+ common members found for company '{company_name_input}' "
+                        f"and target year {target_year_input_specific} (limit: {limit_input_specific}). "
+                        f"The company might exist and have employees meeting the year criteria, "
+                        f"but they do not form groups of 2+ members in the same forum."
+                    )
+            # If groups_result_specific is None, make_api_request has already shown an error (e.g., 404, 500)
 
 
 # --- 5. Find 2nd Degree Connections Who Commented on Liked Posts ---
@@ -381,7 +396,7 @@ elif action == "Cities with active People":
     min_active_input = st.number_input("Minimum number of active users (who posted or commented at least 5 times):", min_value=1,value=10,step=1)
     if st.button("Search Cities 🏙️"):
         if min_active_input: 
-            # The FASTAPI_BASE_URL (http://localhost:8000) is prepended by make_api_request
+            # The FASTAPI_BASE_URL (http://localhost:8001) is prepended by make_api_request
             api_endpoint = f"/find-cities/by-activeuser?min_active_people={min_active_input}"
 
             cities = make_api_request(api_endpoint)

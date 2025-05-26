@@ -11,9 +11,5 @@ class GroupDetail(BaseModel):
     companyId: int          # Corresponds to company.id (from Neo4j) / organization.id (PostgreSQL)
     companyName: str        # Fetched from PostgreSQL
     forumId: int            # Corresponds to forum.id (from Neo4j) / forum.id (MongoDB)
-                            # Considering forum.id can be large, Python's int handles it.
     forumTitle: str         # Fetched from MongoDB
     members: List[MemberInfo]
-
-# The final response from the endpoint could be a list of these groups
-# For example: app.get("/path", response_model=List[GroupDetail])
