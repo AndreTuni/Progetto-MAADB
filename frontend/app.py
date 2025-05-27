@@ -1,15 +1,14 @@
 import streamlit as st
 import requests
-import json  # Not strictly used for display here, but good to have if needed for raw JSON later
+import json
 import pandas as pd
 import datetime  # For year input default
 import altair as alt
 import urllib.parse  # For URL encoding company name if needed
 
-
 # --- CONFIGURATION ---
 # Ensure this matches the port your FastAPI app is running on.
-FASTAPI_BASE_URL = "http://localhost:8000"  # Or your actual FastAPI URL
+FASTAPI_BASE_URL = "http://localhost:8000"
 
 st.set_page_config(page_title="Progetto MAADB", layout="wide")
 st.title("📊 Progetto MAADB Dashboard")
@@ -91,7 +90,6 @@ def make_api_request(endpoint: str, method: str = "GET", params: dict = None, da
             response = requests.get(url, params=params)
         elif method == "POST":
             response = requests.post(url, params=params, json=data)
-        # Add other methods (PUT, DELETE) if needed
         else:
             st.error(f"Unsupported HTTP method: {method}")
             return None
@@ -159,7 +157,6 @@ elif action == "Post of a Person":
     if st.button("Search Posts 🚀"):
         if email_input:
             # The endpoint path in FastAPI is /by-email/{user_email}
-            # The FASTAPI_BASE_URL (http://localhost:8001) is prepended by make_api_request
             api_endpoint = f"/by-email/{email_input}"
 
             posts = make_api_request(api_endpoint)
@@ -224,11 +221,10 @@ elif action == "Forum of a Person":
 # --- 3. Find Persons who Know and Commented Action ---
 elif action == "Friends who Comment":
     st.markdown("ℹ️ This query allows you to find all the people who know a person and have commented on his posts, with forum details ")
-    target_email = st.text_input("Enter the email address of the user:", placeholder="e.g., Jeorge74@gmail.com")
+    target_email = st.text_input("Enter the email address of the user:", placeholder="e.g., Tissa47@gmx.com")
 
     if st.button("Search Persons 🚀"):
         if target_email:
-            # The FASTAPI_BASE_URL (http://localhost:8001) is prepended by make_api_request
             api_endpoint = f"/find-person/by-email/{target_email}"
 
             results = make_api_request(api_endpoint)
@@ -364,7 +360,6 @@ elif action == "Find Groups for Specific Company":  # This is now a distinct top
                         f"The company might exist and have employees meeting the year criteria, "
                         f"but they do not form groups of 2+ members in the same forum."
                     )
-            # If groups_result_specific is None, make_api_request has already shown an error (e.g., 404, 500)
 
 
 # --- 5. Find 2nd Degree Connections Who Commented on Liked Posts ---
@@ -382,8 +377,6 @@ elif action == "Active second-degree Connections":
                     st.success(f"✅ Found {len(results)} comment(s) from 2nd degree connections related to liked posts:")
                     df = pd.DataFrame(results)
                     st.dataframe(df, use_container_width=True)
-                    if st.checkbox("Show raw JSON", key="show_raw_2nd_degree_json"):
-                        st.json(results)
                 else:
                     st.warning(f"No matching results found for user '{input}'.")
         else:
@@ -392,35 +385,45 @@ elif action == "Active second-degree Connections":
 
 # --- 6. Find Cities of active people ---
 elif action == "Cities with active People":
-    st.markdown("ℹ️ This query allows you to find all the cities from which a minimium number of active people come (ie who have created or commented at least 5/post comments) ")
-    min_active_input = st.number_input("Minimum number of active users (who posted or commented at least 5 times):", min_value=1,value=10,step=1)
+    st.markdown("ℹ️ This query allows you to find all the cities from which a minimum number of active people come (i.e. who have created or commented at least 5/post comments).")
+    min_active_input = st.number_input("Minimum number of active users (who posted or commented at least 5 times):", min_value=1, value=10, step=1)
+    
     if st.button("Search Cities 🏙️"):
-        if min_active_input: 
-            # The FASTAPI_BASE_URL (http://localhost:8001) is prepended by make_api_request
+        if min_active_input:
             api_endpoint = f"/find-cities/by-activeuser?min_active_people={min_active_input}"
-
             cities = make_api_request(api_endpoint)
 
             if cities is not None:  # Check if request was successful (cities can be an empty list)
-                if cities:  # If posts list is not empty
+                if cities:
                     st.success(f"✅ Found {len(cities)} city/cities with at least {min_active_input} active users:")
-                    display_cities = []
-                    for city in cities:
-                        display_cities.append({
-                            "City ID": city.get("cityId"),
-                            "City Name": city.get("cityName", "N/A"),
-                            "Active Users": city.get("activeUserCount")
-                        })
 
-                    df = pd.DataFrame(display_cities)
-                    st.dataframe(df, use_container_width=True)
-                else:  # posts is an empty list
-                    st.warning(
-                        f"🤷 No cities found with at least {min_active_input} active users."
-                    )
-            # Error handling (including 404 for "Person not found") is done within make_api_request.
+                    df = pd.DataFrame(cities)
+                    df.rename(columns={
+                        "cityId": "City ID",
+                        "cityName": "City Name",
+                        "activeUserCount": "Active Users"
+                    }, inplace=True)
+
+                    if len(df) > 50:
+                        # Show table only if more than 50 cities found
+                        st.dataframe(df, use_container_width=True)
+                        st.write(" ")
+                    else:
+                        chart = alt.Chart(df).mark_bar().encode(
+                            x=alt.X("City Name:N", title="City Name", sort='-y'),
+                            y=alt.Y("Active Users:Q", title="Active Users"),
+                            tooltip=["City Name", "Active Users", "City ID"]
+                        ).properties(
+                            title="📊 Active Users per City",
+                            width=600,
+                            height=400
+                        )
+                        st.altair_chart(chart, use_container_width=True)
+                else:
+                    st.warning(f"🤷 No cities found with at least {min_active_input} active users.")
         else:
-            st.warning("Doh! Please enter a minimium active number of users to search.")
+            st.warning("Doh! Please enter a minimum active number of users to search.")
+
 
 
 # --- 7. Favorite Tags for Birthplace ---
@@ -493,7 +496,7 @@ elif action == "Favorite Tags for Birthplace":
 # --- 8. Find Common Interests among Active Users ---
 elif action == "Common Interests":
     st.markdown("ℹ️ This query allows you to find the most common interests among people who have posted at least 10 posts and work in the same place or study at the same university ")
-    input = st.text_input("Enter the name of the organisation:", placeholder="e.g., UniTO")
+    input = st.text_input("Enter the name of the organisation:", placeholder="e.g., AeroLogic")
 
     if st.button("Search Connections 🔍"):
         if input:
@@ -534,36 +537,51 @@ elif action == "Common Interests":
 
 # --- 9. Find Forum of Members interested in same tagClass by tag class name ---
 elif action == "Forums with interest in TagClass":
-    st.markdown("ℹ️ This query allows you to view all forums with more than a certain number of members interested in tags of the same tag class  ")
-    tagclass_input = st.text_input("Enter the name of the tagClass:", placeholder="e.g., University")
+    st.markdown("ℹ️ This query allows you to view all forums with more than a certain number of members interested in tags of the same tag class")
+    tagclass_input = st.text_input("Enter the name of the tagClass:", placeholder="e.g., SoccerPlayer")
     min_members_input = st.number_input("Minimum number of interested members:", min_value=1, value=5, step=1)
     
     if st.button("Search Forums 🔍"):
         if tagclass_input:
-            # Construct query parameters
             api_endpoint = f"/find-forum/by-tagclass/{tagclass_input}?min_members={min_members_input}"
-
             forums = make_api_request(api_endpoint)
 
-            if forums is not None:  # Check if request was successful (forums can be an empty list)
-                if forums:  # If posts list is not empty
+            if forums is not None:
+                if forums:
                     st.success(f"✅ Found {len(forums)} forum(s) with at least {min_members_input} interested members in tagClass '{tagclass_input}':")
+
                     display_forums = []
                     for forum in forums:
                         display_forums.append({
                             "Forum ID": forum.get("id"),
                             "Title": forum.get("title", "N/A"),
                             "Creation Date": forum.get("creationDate", "N/A"),
-                            "Moderator Person ID": forum.get("ModeratorPersonId", "N/A"),
+                            "Moderator ID": forum.get("ModeratorPersonId", "N/A"),
                             "Interested Members": forum.get("interested_members", "N/A")
                         })
 
                     df = pd.DataFrame(display_forums)
-                    st.dataframe(df, use_container_width=True)
-                else:  # posts is an empty list
-                    st.warning(
-                        f"🤷  No forums found with at least {min_members_input} interested members in tagClass '{tagclass_input}'."
-                    )
-            # Error handling (including 404 for "Person not found") is done within make_api_request.
+
+                    # Convert 'Creation Date' to datetime
+                    df["Creation Date"] = pd.to_datetime(df["Creation Date"], dayfirst=True, errors="coerce")
+
+                    # Show table (if results are not too many)
+                    if len(df) > 20:
+                        chart = alt.Chart(df).mark_circle(size=80).encode(
+                            x=alt.X("Creation Date:T", title="Forum Creation Date"),
+                            y=alt.Y("Interested Members:Q", title="Interested Members"),
+                            color=alt.Color("Moderator ID:N", title="Moderator ID"),
+                            tooltip=["Forum ID", "Title", "Interested Members", "Creation Date", "Moderator ID"]
+                        ).properties(
+                            title="📈 Forums by Creation Date and Interested Members",
+                            width=700,
+                            height=450
+                        ).interactive()
+
+                        st.altair_chart(chart, use_container_width=True)
+                    else:
+                        st.dataframe(df, use_container_width=True)
+                else:
+                    st.warning(f"🤷  No forums found with at least {min_members_input} interested members in tagClass '{tagclass_input}'.")
         else:
             st.warning("Doh! Please enter a tag class to search.")

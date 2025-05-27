@@ -1,12 +1,14 @@
-from fastapi import APIRouter, HTTPException
-from pymongo.errors import ConnectionFailure
-import psycopg
-from fastapi import HTTPException  # Added Path
-from db.mongo_client import db
-from db.neo4j_client import driver
-from db.postgres_client import conn
+from fastapi import APIRouter, HTTPException, Depends
+
+import psycopg2
+from psycopg2.extras import DictCursor
+
 from pymongo.errors import ConnectionFailure
 from neo4j.exceptions import ServiceUnavailable, ClientError
+
+from db.mongo_client import db
+from db.neo4j_client import driver
+from db.postgres_client import get_db_connection
 
 
 router = APIRouter()
@@ -37,19 +39,19 @@ async def check_mongodb_connection():
 
 # --- PostgreSQL Health (using psycopg2) ---
 @router.get("/postgres/health", tags=["PostgreSQL"])
-def check_postgres_connection():
+def check_postgres_connection(pg_conn: psycopg2.extensions.connection = Depends(get_db_connection)):
     """
     Checks the connection to the PostgreSQL database.
     """
     try:
-        with conn.cursor() as cursor:
+        with pg_conn.cursor(cursor_factory=DictCursor) as cursor:
             cursor.execute("SELECT version();")
             version = cursor.fetchone()[0]
             return {
                 "status": "PostgreSQL connection is healthy",
                 "server_info": version
             }
-    except psycopg.Error as e:
+    except psycopg2.Error as e:
         raise HTTPException(status_code=500, detail=f"PostgreSQL connection check failed: {e}")
     except Exception as e:
         print(f"Unexpected error in /postgres/health: {e}")

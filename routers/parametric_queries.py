@@ -1,20 +1,19 @@
-from fastapi import APIRouter, HTTPException
-from pymongo.errors import ConnectionFailure
-import psycopg2
+from fastapi import APIRouter, HTTPException, Path, Query, Depends
+
+import psycopg2, math
 from psycopg2.extras import DictCursor
-from fastapi import HTTPException, Path, Depends, Query
+
 from db.mongo_client import db
 from db.neo4j_client import driver
 from db.postgres_client import get_db_connection
-from pymongo.errors import ConnectionFailure
-from neo4j.exceptions import ServiceUnavailable, ClientError
+
 from models.query_1.model import PostResponse
 from models.query_2.model import ForumResponse
 from models.query_3.model import FullResponseItem
 from models.query_4.model import GroupDetail, MemberInfo
 from models.query_5.model import SecondDegreeCommentResponse
+
 from typing import List, Optional
-import math
 
 
 router = APIRouter()
@@ -32,12 +31,16 @@ async def get_posts_by_user_email(
         person_document = await db.person.find_one({"email": {"$in": [user_email]}})
         if not person_document:
             raise HTTPException(status_code=404, detail=f"Person with email '{user_email}' not found.")
+        
         person_id_from_doc = person_document.get("id")
         if person_id_from_doc is None:
             raise HTTPException(status_code=500, detail="Person record exists but is missing the numeric 'id' field.")
+        
         posts_cursor = db.post.find({"CreatorPersonId": person_id_from_doc})
         posts_list = [post_doc async for post_doc in posts_cursor]
+
         return posts_list
+    
     except HTTPException:
         raise
     except Exception as e:
@@ -56,7 +59,6 @@ async def get_forums_by_user_email(
     try:
         # If email is an array field in MongoDB
         person_document = await db.person.find_one({"email": {"$in": [user_email]}})
-
         if not person_document:
             raise HTTPException(status_code=404, detail=f"Person with email '{user_email}' not found.")
 
@@ -72,7 +74,6 @@ async def get_forums_by_user_email(
             r.creationDate AS membership_creation_date
             """
             neo4j_results = list(session.run(query, person_id=person_id))
-        
         if not neo4j_results:
             raise HTTPException(status_code=404, detail=f"No forum memberships found for person ID {person_id}.")
 
@@ -98,7 +99,6 @@ async def get_forums_by_user_email(
             for record in count_results:
                 member_counts[record["forum_id"]] = record["member_count"]
 
-        # Output
         results = []
         for forum in forum_docs:
             fid = forum["id"]
@@ -137,7 +137,7 @@ async def find_person_who_know_and_commented(
         target_posts = await db.post.find({"CreatorPersonId": target_id}).to_list(length=None)
         post_ids = [post["id"] for post in target_posts]
         if not post_ids:
-            return [] # Post list empty
+            return []
         
         #3. Find all comments related to posts
         comments = await db.comment.find({"ParentPostId": {"$in": post_ids}}).to_list(length=None)
@@ -202,7 +202,7 @@ async def find_person_who_know_and_commented(
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 
-# --- Helper function for Neo4j results (no changes) ---
+# --- Helper function for Neo4j results ---
 def get_neo4j_results(tx, query, params):
     result = tx.run(query, params)
     return [record.data() for record in result]
@@ -212,21 +212,20 @@ def get_neo4j_results(tx, query, params):
 @router.get(
     "/groups/by-company/{company_name}/year/{target_year}",  # URL più RESTful
     response_model=List[GroupDetail],
-    summary="Trova gruppi di persone per specifica azienda (da anno) e forum condiviso",
+    summary="Find groups of people by specific company (from yean) and shared forum",
     tags=["Complex Queries - Specific Company"]
 )
 async def find_groups_for_specific_company(
-        company_name: str = Path(..., description="Il nome dell'azienda da cercare."),
+        company_name: str = Path(..., description="Name of target company"),
         target_year: int = Path(...,
-                                description="Anno di riferimento (es. persone che lavorano da quest'anno o prima).",
+                                description="Year",
                                 ge=1900, le=2100),
-        limit: Optional[int] = Query(50, description="Numero massimo di gruppi forum da restituire per questa azienda.",
+        limit: Optional[int] = Query(50, description="Maximium number of forum groups to return for this company",
                                      ge=1, le=1000),
         pg_conn: psycopg2.extensions.connection = Depends(get_db_connection)
 ):
 
     company_psql_id = None
-    # Passaggio 1: Risolvere il Nome dell'Azienda in ID (PostgreSQL)
     try:
         with pg_conn.cursor(cursor_factory=DictCursor) as cursor:
             cursor.execute("SELECT id FROM organization WHERE name = %s", (company_name,))
@@ -234,17 +233,16 @@ async def find_groups_for_specific_company(
             if company_row:
                 company_psql_id = company_row["id"]
             else:
-                # Come concordato, restituisco 404 se l'azienda non viene trovata
                 raise HTTPException(status_code=404, detail=f"Azienda con nome '{company_name}' non trovata.")
         pg_conn.commit()  # Commit dopo la lettura, buona pratica
-    except psycopg2.Error as e:
-        print(f"ERROR: Errore PostgreSQL durante la ricerca dell'ID azienda '{company_name}': {e}")
-        if pg_conn: pg_conn.rollback()
-        raise HTTPException(status_code=500, detail=f"Errore database durante la ricerca dell'azienda: {e}")
 
-    # Passaggio 2: Eseguire la Query Neo4j Mirata
-    # Usiamo la query a due stadi che ha funzionato bene senza indici problematici
-    # ma ora filtrata per $companyIdParam
+    except psycopg2.Error as e:
+        print(f"ERROR: PostgreSQL error while searching for company ID of '{company_name}': {e}")
+        if pg_conn: pg_conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error while comapny research: {e}")
+
+    # Step 2: executing Neo4j Query
+    # Using two-stage query which worked well without problematic indexes but now filtered for $companyIdParam
     cypher_query_specific_company = """
     MATCH (person:Person)-[workRel:WORK_AT]->(company:Company {id: $companyIdParam}),
           (person)-[:MEMBER_OF]->(forum:Forum)
@@ -276,11 +274,9 @@ async def find_groups_for_specific_company(
                                                              neo4j_params)
 
         if not raw_groups_from_neo4j:
-            return []  # Nessun gruppo trovato per questa azienda/anno/forum combinazione
+            return []  
 
-        # Passaggi 3, 4, 5: Preparazione e Recupero Batch dei Dettagli (Forum e Persone)
-        # L'ID dell'azienda è già noto (company_psql_id), e il nome è company_name (dall'input)
-
+        # Step 3, 4, 5: Preparation and retrieve of details batch (Forum and People)
         all_forum_ids = list(set(g["forumMongoId"] for g in raw_groups_from_neo4j))
         all_person_ids_flat = list(set(pid for g in raw_groups_from_neo4j for pid in g["personMongoIds"]))
 
@@ -300,12 +296,12 @@ async def find_groups_for_specific_company(
             async for person_doc in person_cursor:
                 person_details_map[person_doc["id"]] = MemberInfo(**person_doc)
 
-        # Assemblaggio Risultati Finali
+        # Assembling final results
         for group_skeleton in raw_groups_from_neo4j:
-            # company_id_from_skel = group_skeleton["companyPsqlId"] # Dovrebbe corrispondere a company_psql_id
+            # company_id_from_skel = group_skeleton["companyPsqlId"]
             forum_id = group_skeleton["forumMongoId"]
 
-            # Usiamo il company_name fornito in input per coerenza
+            # Using given company_name
             forum_title = forum_details_map.get(forum_id, "Forum Sconosciuto")
 
             current_members_info = []
@@ -314,34 +310,17 @@ async def find_groups_for_specific_company(
                 if member_info:
                     current_members_info.append(member_info)
 
-            if current_members_info:  # Dovrebbe sempre essere vero data la logica della query Neo4j
+            if current_members_info:
                 final_group_details_specific.append(GroupDetail(
-                    companyId=company_psql_id,  # Usiamo l'ID dell'azienda verificato
-                    companyName=company_name,  # Usiamo il nome dell'azienda fornito in input
+                    companyId=company_psql_id,  # Using verified company ID
+                    companyName=company_name,  # Using given company name
                     forumId=forum_id,
                     forumTitle=forum_title,
                     members=current_members_info
                 ))
 
-    # Gestione errori specifici per le operazioni del database in questo endpoint
-    except HTTPException:  # Riaumenta le HTTPException già sollevate (es. 404)
-        raise
-    except psycopg2.Error as e:
-        print(f"ERROR: Errore PostgreSQL nell'endpoint specifico per azienda: {e}")
-        # pg_conn è già gestito dal dependency injection per commit/rollback generale
-        raise HTTPException(status_code=500, detail=f"Errore database PostgreSQL: {e}")
-    except ServiceUnavailable as e:
-        print(f"ERROR: Neo4j service unavailable: {e}")
-        raise HTTPException(status_code=503, detail=f"Servizio Neo4j non disponibile: {e}")
-    except ClientError as e:
-        print(f"ERROR: Neo4j client error: {e}")
-        raise HTTPException(status_code=500, detail=f"Errore client Neo4j: {e}")
-    except ConnectionFailure as e:
-        print(f"ERROR: MongoDB connection error: {e}")
-        raise HTTPException(status_code=503, detail=f"Errore connessione MongoDB: {e}")
-    except Exception as e:
-        print(f"ERROR: Errore inatteso in find_groups_for_specific_company: {type(e).__name__} - {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Errore server inatteso: {str(e)}")
+    except HTTPException:
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
     return final_group_details_specific
 
@@ -412,7 +391,7 @@ async def get_second_degree_commenters_on_liked_posts(
                 (isinstance(value, float) and math.isnan(value))
             )
 
-        # Retrieve persons once
+        # Retrieve people once
         commenter_ids = list(set(comment["CreatorPersonId"] for comment in comments))
         people = await db.person.find({"id": {"$in": commenter_ids}}).to_list(length=None)
         person_map = {p["id"]: p.get("firstName", "") + " " + p.get("lastName", "") for p in people}

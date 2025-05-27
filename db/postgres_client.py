@@ -1,15 +1,7 @@
-import psycopg
 import psycopg2
 from psycopg2 import pool
 from config import settings
 
-conn = psycopg.connect(
-    dbname=settings.postgres_db,
-    user=settings.postgres_user,
-    password=settings.postgres_password,
-    host=settings.postgres_host,
-    port=settings.postgres_port
-)
 
 # Connection parameters for psycopg2
 DB_ARGS = {
@@ -25,10 +17,7 @@ try:
 except psycopg2.OperationalError as e:
     print(f"CRITICAL: Failed to initialize PostgreSQL connection pool (psycopg2): {e}")
     postgres_pool = None
-    # Consider re-raising the exception if pool initialization is critical for app start
-    # raise
 
-# MODIFIED: Removed @contextlib.contextmanager decorator
 # This is now a generator function suitable for FastAPI's "dependency with yield"
 def get_db_connection():
     """
@@ -37,7 +26,6 @@ def get_db_connection():
     """
     if postgres_pool is None:
         # This error will propagate and FastAPI will return a 500 error.
-        # You might want to catch this in a middleware for a custom response if needed.
         raise Exception("PostgreSQL connection pool (psycopg2) is not available or not initialized.")
 
     conn = None
@@ -57,8 +45,6 @@ def get_db_connection():
                 postgres_pool.putconn(conn)
             except psycopg2.Error as e:
                 print(f"Error putting connection back to pool: {e}")
-                # Handle this error, e.g., by trying to close the connection if it's in a bad state
-                # or logging extensively. For now, just printing.
 
 
 # Function to close the pool on application shutdown
