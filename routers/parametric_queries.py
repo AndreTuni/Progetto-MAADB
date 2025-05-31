@@ -124,78 +124,84 @@ async def find_person_who_know_and_commented(
         target_email: str = Path(..., description="An email address of the target user.", example="Jeorge74@gmail.com")
 ):
     try:
-        # 1. Find target user by email in MongoDB
-        target_person = await db.person.find_one({"email": {"$in": [target_email]}})
+        # 1. Find target person
+        target_person = await db.person.find_one({"email": target_email})
         if not target_person:
             raise HTTPException(status_code=404, detail=f"Person with email '{target_email}' not found.")
-
+        
         target_id = target_person.get("id") or str(target_person.get("_id"))
         if not target_id:
-            raise HTTPException(status_code=500, detail=f"Person record exists but is missing an 'id'.")
-        
-        # 2. Find all post created by target user
+            raise HTTPException(status_code=500, detail="Person record exists but is missing an 'id'.")
+
+        # 2. Find all posts created by target user
         target_posts = await db.post.find({"CreatorPersonId": target_id}).to_list(length=None)
         post_ids = [post["id"] for post in target_posts]
         if not post_ids:
             return []
-        
-        #3. Find all comments related to posts
-        comments = await db.comment.find({"ParentPostId": {"$in": post_ids}}).to_list(length=None)
 
-        # 4. Create map {commenter_id: [comments]}
+        post_map = {post["id"]: post for post in target_posts}
+
+        # 3. Find all comments on target posts
+        comments = await db.comment.find({"ParentPostId": {"$in": post_ids}}).to_list(length=None)
         commenter_map = {}
         for comment in comments:
-            pid = comment["CreatorPersonId"]
-            if pid not in commenter_map:
-                commenter_map[pid] = []
-            commenter_map[pid].append(comment)
+            commenter_id = comment["CreatorPersonId"]
+            commenter_map.setdefault(commenter_id, []).append(comment)
 
         if not commenter_map:
-            return []  # No comment from other users
+            return []
+        commenter_ids = list(commenter_map.keys())
 
-        # 5. For each commenter, check if knows target user in Neo4j
-        results = []
-        for commenter_id in commenter_map:
+        # 4. Use Neo4j to find which commenters know the target person
+        with driver.session(database="neo4j") as session:
             query = """
-            MATCH (a:Person {id: $target_id})-[:KNOWS]->(b:Person {id: $commenter_id})
-            RETURN b
+            MATCH (a:Person {id: $target_id})-[:KNOWS]->(b:Person)
+            WHERE b.id IN $commenter_ids
+            RETURN b.id AS id
             """
-            with driver.session(database="neo4j") as session:
-                res = session.run(query, {"target_id": target_id, "commenter_id": commenter_id}).data()
+            result = session.run(query, {
+                "target_id": target_id,
+                "commenter_ids": commenter_ids
+            })
+            known_ids = {record["id"] for record in result}
+        if not known_ids:
+            return []
 
-            if res:
-                # If knows, retrieve person from MongoDB
-                knowing_person = await db.person.find_one({"id": commenter_id})
-                if not knowing_person:
-                    continue
+        # 5. Get knowing persons from MongoDB in bulk
+        knowing_people = await db.person.find({"id": {"$in": list(known_ids)}}).to_list(length=None)
+        knowing_people_map = {p["id"]: p for p in knowing_people}
 
-                # Forum associated at commented posts
-                commented_post_ids = [c["ParentPostId"] for c in commenter_map[commenter_id]]
-                commented_posts = [post for post in target_posts if post["id"] in commented_post_ids]
-                forum_ids = list({
-                    post["ContainerForumId"] for post in commented_posts
-                    if "ContainerForumId" in post and post["ContainerForumId"] is not None
-                })
-                forums = await db.forum.find({"id": {"$in": forum_ids}}).to_list(length=None)
-                # Return complete structure
-                results.append({
-                    "target_person": target_person,
-                    "knowing_person": knowing_person,
-                    "comments": [
-                        {
-                            **comment,
-                            "post": {
-                                **next((post for post in target_posts if post["id"] == comment["ParentPostId"]), {}),
-                                "forum_id": next(
-                                    (post["ContainerForumId"] for post in target_posts if post["id"] == comment["ParentPostId"] and "ContainerForumId" in post),
-                                    None
-                                )
-                            }
+        # 6. Compose results
+        results = []
+        for commenter_id in known_ids:
+            knowing_person = knowing_people_map.get(commenter_id)
+            if not knowing_person:
+                continue
+            user_comments = commenter_map.get(commenter_id, [])
+            commented_post_ids = [c["ParentPostId"] for c in user_comments]
+
+            forum_ids = list({
+                post_map[pid]["ContainerForumId"]
+                for pid in commented_post_ids
+                if pid in post_map and post_map[pid].get("ContainerForumId")
+            })
+            forums = await db.forum.find({"id": {"$in": forum_ids}}).to_list(length=None)
+
+            results.append({
+                "target_person": target_person,
+                "knowing_person": knowing_person,
+                "comments": [
+                    {
+                        **comment,
+                        "post": {
+                            **post_map.get(comment["ParentPostId"], {}),
+                            "forum_id": post_map.get(comment["ParentPostId"], {}).get("ContainerForumId")
                         }
-                        for comment in commenter_map[commenter_id]
-                    ],
-                    "forums": forums
-                })
+                    }
+                    for comment in user_comments
+                ],
+                "forums": forums
+            })
         return results
 
     except Exception as e:
