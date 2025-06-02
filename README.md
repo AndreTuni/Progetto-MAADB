@@ -114,3 +114,47 @@ la collection Person su mongo nel campo email ha una serie di email separate da 
 ```bash
 docker exec maadbproject-app-1 python /app/misch/email_to_array.py
 ```
+
+---
+
+## 🛠️ Create Indexes Manually After Initialization
+
+After all containers are up and running and the data has been properly initialized, it's **highly recommended** to manually create a few indexes in each database engine to improve query performance, especially on large datasets.
+
+### 🐘 PostgreSQL
+
+Access your PostgreSQL client or connect via container and run the following SQL commands:
+
+```sql
+CREATE INDEX idx_organization_name ON organization(name);
+CREATE INDEX idx_tag_class_id ON Tag("TypeTagClassId"); -- for Matteo
+CREATE INDEX idx_place_id ON place(id); -- Added by Matteo
+CREATE INDEX idx_tagclass_name ON tagclass(name); -- Added by Matteo
+```
+
+### 🍃 MongoDB
+
+Enter the Mongo shell (`mongosh`) from within the container:
+
+```bash
+docker exec -it <mongo_container_name> mongosh
+```
+
+Then execute:
+
+```javascript
+db.person.createIndex({ email: 1 }, { name: "email_index" });
+db.post.createIndex({ CreatorPersonId: 1 }, { name: "post_creator_index" });
+db.person.createIndex({ LocationCityId: 1 }, { name: "location_city_index" });
+db.Comment.createIndex({ CreatorPersonId: 1, ParentPostId: 1 });
+```
+
+### 🧠 Neo4j
+
+Using the Neo4j browser or `cypher-shell`, execute the following Cypher query:
+
+```cypher
+CREATE INDEX works_from_date_index FOR ()-[r:WORK_AT]-() ON (r.workFrom);
+```
+
+> 🔍 These indexes are not created automatically to preserve full control over the schema. Creating them ensures **faster response times** for the most common and critical queries used in the project.
