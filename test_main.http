@@ -1,0 +1,27 @@
+### Init MongoDB with sample data
+POST http://127.0.0.1:8000/mongo/init
+Accept: application/json
+
+###
+
+### Init Neo4j with sample data
+POST http://127.0.0.1:8000/neo4j/init
+Accept: application/json
+
+###
+
+### Get person from MongoDB
+GET http://127.0.0.1:8000/mongo/person/Alice
+Accept: application/json
+
+###
+
+### Get friends from Neo4j
+GET http://127.0.0.1:8000/neo4j/friends/Alice
+Accept: application/json
+
+###
+
+### Cross-database query (Mongo + Neo4j)
+GET http://127.0.0.1:8000/cross/Alice
+Accept: application/json

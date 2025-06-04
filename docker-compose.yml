@@ -1,0 +1,57 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8501:8501"
+      - "8000:8000"
+    volumes:
+      - .:/app
+    depends_on:
+      - postgres
+      - mongodb
+      - neo4j
+    env_file:
+      - .env
+    environment:
+      - INIT_POSTGRES=false
+      - INIT_MONGODB=false
+      - INIT_NEO4J_NODES=false
+      - INIT_NEO4J_REL=false
+
+
+  postgres:
+    image: postgres:14
+    ports:
+      - "5432:5432"
+    env_file:
+      - .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  mongodb:
+    image: mongo:6
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
+    volumes:
+      - mongodb_data:/data/db
+
+  neo4j:
+    image: neo4j:5
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+
+    environment:
+      - NEO4J_AUTH=${NEO4J_USER}/${NEO4J_PASSWORD}
+      - NEO4J_server_config_strict__validation_enabled=false
+    volumes:
+      - neo4j_data:/data
+      - ./data/dynamic:/import
+
+volumes:
+  postgres_data:
+  mongodb_data:
+  neo4j_data:
