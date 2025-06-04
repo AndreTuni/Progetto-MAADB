@@ -8,8 +8,8 @@ __pycache__/
 # File .env
 .env
 
-# Cartella dei dati dinamici (valuta se tutta la cartella va ignorata)
-data/dynamic/
+# Cartella dei dati dinamici 
+data/
 
 # Altri file comuni da ignorare
 *.DS_Store
@@ -17,5 +17,4 @@ data/dynamic/
 *.tmp
 *.temp
 # Eventuali ambienti virtuali, es:
-# venv/
-# .venv/
+.venv/
