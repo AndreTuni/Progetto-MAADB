@@ -1,0 +1,21 @@
+# File di configurazione specifici dell'IDE (es. IntelliJ, PyCharm)
+.idea/
+
+# Cache di Python
+__pycache__/
+*.pyc
+
+# File .env
+.env
+
+# Cartella dei dati dinamici (valuta se tutta la cartella va ignorata)
+data/dynamic/
+
+# Altri file comuni da ignorare
+*.DS_Store
+*.log
+*.tmp
+*.temp
+# Eventuali ambienti virtuali, es:
+# venv/
+# .venv/
