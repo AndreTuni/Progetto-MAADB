@@ -150,7 +150,7 @@ In caso di errore riguardante file mancanti, verificare che i file `.tar.bz2` si
 
 ### Cast da String ad Integer per il campo workFrom delle relation WORK_AT 
 
-Durante l'import il campo workFrom è stato erroneamente importato come String invece che come Integer. Considerato il notevole tempo di esecuzione della procedura di import si è preerito porre rimedio con questo comando invece di ripopolare l'intero database. 
+Durante l'import il campo workFrom è stato erroneamente importato come String invece che come Integer. Considerato il notevole tempo di esecuzione della procedura di import si è preferito porre rimedio con questo comando invece di ripopolare l'intero database. 
 
 ```bash
 MATCH ()-[r:WORK_AT]->()
