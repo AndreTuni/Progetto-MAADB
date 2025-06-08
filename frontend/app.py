@@ -73,7 +73,7 @@ elif main_menu == "📈 Analytical Queries":
     action = st.sidebar.selectbox("📊 Select Query", [
         "-- Select an option --", # Default option
         "Cities with active People",
-        "Favorite Tags for Birthplace",
+        "Favorite Tags for Location",
         "Common Interests",
         "Forums with interest in TagClass"
     ])
@@ -426,8 +426,8 @@ elif action == "Cities with active People":
 
 
 
-# --- 7. Favorite Tags for Birthplace ---
-elif action == "Favorite Tags for Birthplace":
+# --- 7. Favorite Tags for Location ---
+elif action == "Favorite Tags for Location":
     st.markdown("""
     ℹ️ This query allows you to find the city of a given a user's email. Then, it identifies the tags
     (along with their URL and class) that people in that same city have most
