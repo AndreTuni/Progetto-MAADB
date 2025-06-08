@@ -7,25 +7,25 @@ export PYTHONPATH=/app:$PYTHONPATH
 if [ "$INIT_POSTGRES" = "true" ]; then
   echo "Initializing database..."
   echo "Postgres initialization starting..."
-  python db/init_postgres.py
+  python db/initialize_db/init_postgres.py
   echo "Postgres initialization finished."
 fi
 if [ "$INIT_MONGODB" = "true" ]; then
   echo "Initializing database..."
   echo "MongoDB initialization starting..."
-  python db/init_mongodb.py
+  python db/initialize_db/init_mongodb.py
   echo "MongoDB initialization finished..."
 fi
 if [ "$INIT_NEO4J_NODES" = "true" ]; then
   echo "Initializing database..."
   echo "Neo4j nodes initialization starting..."
-  python db/init_neo4j_nodes.py
+  python db/initialize_db/init_neo4j_nodes.py
   echo "Neo4j nodes initialization finished..."
 fi
 if [ "$INIT_NEO4J_REL" = "true" ]; then
   echo "Initializing database..."
   echo "Neo4j initialization starting..."
-  python db/init_neo4j_relationships.py
+  python db/initialize_db/init_neo4j_relationships.py
   echo "Neo4j initialization finished..."
 fi
 echo -e "\033[1;32m#### Database initialization complete. ####\033[0m"

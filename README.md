@@ -137,9 +137,9 @@ docker run --rm -v maadbproject_postgres_data:/volume -v ${PWD}:/backup loomchil
 #### Terminale su macOS/Linux
 
 ```bash
-docker run --rm -v maadbproject_mongodb_data:/volume -v $(pwd):/backup loomchild/volume-backup restore mongodb_backup.tar.bz2
-docker run --rm -v maadbproject_neo4j_data:/volume -v $(pwd):/backup loomchild/volume-backup restore neo4j_backup.tar.bz2
-docker run --rm -v maadbproject_postgres_data:/volume -v $(pwd):/backup loomchild/volume-backup restore postgres_backup.tar.bz2
+docker run --rm -v maadbproject_mongodb_data:/volume -v $(pwd):/backup loomchild/volume-backup restore -f mongodb_backup.tar.bz2
+docker run --rm -v maadbproject_neo4j_data:/volume -v $(pwd):/backup loomchild/volume-backup restore -f neo4j_backup.tar.bz2
+docker run --rm -v maadbproject_postgres_data:/volume -v $(pwd):/backup loomchild/volume-backup restore -f postgres_backup.tar.bz2
 ```
 
 ---
@@ -148,12 +148,15 @@ In caso di errore riguardante file mancanti, verificare che i file `.tar.bz2` si
 
 ---
 
-## Conversione del Campo Email in Array
+### Cast da String ad Integer per il campo workFrom delle relation WORK_AT 
 
-Nella collezione `Person` di MongoDB, il campo `email` può contenere una stringa unica con più indirizzi email separati da `;`. Per convertire questo campo in un array di stringhe, eseguire lo script `email_to_array.py` con il seguente comando:
+Durante l'import il campo workFrom è stato erroneamente importato come String invece che come Integer. Considerato il notevole tempo di esecuzione della procedura di import si è preerito porre rimedio con questo comando invece di ripopolare l'intero database. 
 
 ```bash
-docker exec maadbproject-app-1 python /app/misch/email_to_array.py
+MATCH ()-[r:WORK_AT]->()
+WHERE r.workFrom IS NOT NULL
+SET r.workFrom = toInteger(r.workFrom)
+RETURN r;
 ```
 
 ---

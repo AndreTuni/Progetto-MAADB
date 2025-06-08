@@ -10,6 +10,7 @@ __pycache__/
 
 # Cartella dei dati dinamici 
 data/
+./misc
 
 # Altri file comuni da ignorare
 *.DS_Store

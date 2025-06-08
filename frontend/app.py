@@ -283,7 +283,7 @@ elif action == "Find Groups for Specific Company":  # This is now a distinct top
 
     company_name_input = st.text_input(
         "Enter Company Name:",
-        placeholder="e.g., Innovatech Solutions",  # Or a name from your dataset
+        placeholder="e.g., Dragonair",  # Or a name from your dataset
         key="specific_company_name_input"  # Made key more specific
     )
 

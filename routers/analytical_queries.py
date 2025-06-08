@@ -168,7 +168,7 @@ async def get_tags_by_city_interest(
                     pg_query = f"""
                     SELECT t.id, t.name AS tag_name, t.url AS tag_url, tc.name AS tag_class_name
                     FROM tag t
-                    LEFT JOIN tagclass tc ON t.TypeTagClassId = tc.id
+                    LEFT JOIN tagclass tc ON t."TypeTagClassId" = tc.id
                     WHERE t.id IN ({placeholders})
                     """
                     cursor.execute(pg_query, tuple(tag_ids_to_fetch_details))
@@ -249,7 +249,7 @@ async def get_organisation_name(
         # Get the id list for an organization name because for example the same university could have n id
         with pg_conn.cursor() as cursor:
             cursor.execute("""
-                SELECT id, LocationPlaceId
+                SELECT id, "LocationPlaceId"
                 FROM organization
                 WHERE name = %s;
             """, (organisation_name,))
@@ -308,7 +308,7 @@ async def get_organisation_name(
                 tc.id AS class_id,
                 tc.name AS class_name,
                 tc.url AS class_url
-            FROM tag t JOIN tagclass tc ON t.TypeTagClassId = tc.id
+            FROM tag t JOIN tagclass tc ON t."TypeTagClassId" = tc.id
             WHERE t.id = ANY(%s);
         """
         with pg_conn.cursor(cursor_factory=DictCursor) as cursor:
@@ -355,7 +355,7 @@ async def get_forums_by_tagclass_members(
             cur.execute('''
                 SELECT t.id
                 FROM "tag" t
-                JOIN "tagclass" tc ON t."typetagclassid" = tc.id
+                JOIN "tagclass" tc ON t."TypeTagClassId" = tc.id
                 WHERE tc.name = %s
             ''', (tagclass_name,))
             tag_rows = cur.fetchall()
