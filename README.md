@@ -1,14 +1,10 @@
 # MAADBproject
 
+Questo progetto richiede una configurazione specifica dei dati e utilizza Docker per la containerizzazione. Si prega di seguire attentamente le istruzioni riportate di seguito per eseguirlo correttamente.
+
 ## Generazione dei Dati
 
-I dati utilizzati in questo progetto sono generati utilizzando il generatore ufficiale di dataset LDBC Social Network Benchmark (SNB). È possibile generare i dati seguendo le istruzioni riportate nel repository ufficiale disponibile al seguente link:
-
-🔗 [https://github.com/ldbc/ldbc\_snb\_datagen\_spark](https://github.com/ldbc/ldbc_snb_datagen_spark)
-
-Assicurarsi di generare correttamente le cartelle `dynamic` e `static`, che dovranno poi essere posizionate nella directory `data` come indicato nella sezione di configurazione.
-
-Questo progetto richiede una configurazione specifica dei dati e utilizza Docker per la containerizzazione. Si prega di seguire attentamente le istruzioni riportate di seguito per eseguirlo correttamente.
+I dati utilizzati in questo progetto sono generati tramite il tool ufficiale [LDBC SNB Datagen Spark](https://github.com/ldbc/ldbc_snb_datagen_spark). Assicurarsi di generare i dataset `dynamic` e `static` e di copiarli come indicato nelle istruzioni di configurazione.
 
 ## Istruzioni per la Configurazione
 
@@ -41,6 +37,30 @@ Questo progetto richiede una configurazione specifica dei dati e utilizza Docker
 
 ## Esecuzione del Progetto con Docker
 
+## Configurazione del file `.env`
+
+Per il corretto funzionamento del progetto, creare un file `.env` nella root e includere le seguenti variabili, sostituendo **<PLACEHOLDER>** coi valori corretti in base alla vostra configurazione:
+
+```env
+# PostgreSQL
+POSTGRES_DB=<YOUR_POSTGRES_DB_NAME>
+POSTGRES_USER=<YOUR_POSTGRES_USER>
+POSTGRES_PASSWORD=<YOUR_POSTGRES_PASSWORD>
+POSTGRES_HOST=<YOUR_POSTGRES_HOST>
+
+# MongoDB
+MONGODB_URI=mongodb://<MONGO_ROOT_USER>:<MONGO_ROOT_PASSWORD>@<MONGO_HOST>:<MONGO_PORT>/<YOUR_DB_NAME>?authSource=admin
+MONGO_INITDB_ROOT_USERNAME=<MONGO_ROOT_USER>
+MONGO_INITDB_ROOT_PASSWORD=<MONGO_ROOT_PASSWORD>
+
+# Neo4j
+NEO4J_URI=bolt://<NEO4J_HOST>:<NEO4J_PORT>
+NEO4J_USER=<NEO4J_USER>
+NEO4J_PASSWORD=<NEO4J_PASSWORD>
+```
+
+**Nota:** assicurarsi che questi valori corrispondano a quelli definiti nel `docker-compose.yml` o nei file di configurazione specifici dei servizi.
+
 1. **Costruire l’Immagine Docker:**
    Portarsi nella directory principale del progetto (dove si trova il file `docker-compose.yml`) ed eseguire:
 
@@ -71,9 +91,9 @@ docker logs maadbproject-app-1
 
 ---
 
-## (Facoltativo) Ripristino dei Backup dei Volumi Docker (Windows & macOS/Linux)
+## \[Opzionale] Ripristino dei Backup dei Volumi Docker (Windows & macOS/Linux)
 
-Questa sezione è opzionale e necessaria solo se si desidera ripristinare i volumi dei database da file di backup precedenti.
+Per ripristinare i volumi di database da backup, seguire i passaggi di seguito.
 
 ### 1. Scaricare i File di Backup
 
@@ -175,3 +195,5 @@ CREATE INDEX works_from_date_index FOR ()-[r:WORK_AT]-() ON (r.workFrom);
 ```
 
 > Questi indici non vengono creati automaticamente per garantire il pieno controllo sullo schema. La loro creazione consente **tempi di risposta più rapidi** per le query più frequenti e rilevanti all'interno del progetto.
+
+---
