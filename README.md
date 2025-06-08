@@ -1,55 +1,69 @@
 # MAADBproject
 
-This project requires a specific data setup and uses Docker for containerization. Please follow the instructions below to get it running.
+## Generazione dei Dati
 
-## Setup Instructions
+I dati utilizzati in questo progetto sono generati utilizzando il generatore ufficiale di dataset LDBC Social Network Benchmark (SNB). È possibile generare i dati seguendo le istruzioni riportate nel repository ufficiale disponibile al seguente link:
 
-1.  **Clone the Repository:**
-    ```bash
-    git clone <repository_url>
-    cd MAADBproject
-    ```
+🔗 [https://github.com/ldbc/ldbc\_snb\_datagen\_spark](https://github.com/ldbc/ldbc_snb_datagen_spark)
 
-2.  **Create the Data Folder:**
-    In the root of the project directory, create a folder named `data`:
-    ```bash
-    mkdir data
-    ```
+Assicurarsi di generare correttamente le cartelle `dynamic` e `static`, che dovranno poi essere posizionate nella directory `data` come indicato nella sezione di configurazione.
 
-3.  **Copy Dataset Folders:**
-    Copy the `dynamic` and `static` folders from your dataset into the newly created `data` folder. Your project structure should then look like this:
-    ```
-    MAADBproject/
-    ├── data/
-    │   ├── dynamic/
-    │   └── static/
-    ├── ... (other project files)
-    ```
-    Alternatively, if you prefer not to copy the folders, ensure that the correct paths to your `dynamic` and `static` dataset folders are properly configured within the project's configuration files.
+Questo progetto richiede una configurazione specifica dei dati e utilizza Docker per la containerizzazione. Si prega di seguire attentamente le istruzioni riportate di seguito per eseguirlo correttamente.
 
-## Running the Project with Docker
+## Istruzioni per la Configurazione
 
-1.  **Build the Docker Image:**
-    Navigate to the root of the project directory (where the `docker-compose.yml` file is located) and run the following command:
-    ```bash
-    docker-compose build app
-    ```
-    This command will build the Docker image for the application service.
+1. **Clonare il Repository:**
 
-2.  **Start the Docker Containers:**
-    Once the image is built, start the containers in detached mode using the following command:
-    ```bash
-    docker-compose up -d
-    ```
-    This will start all the services defined in your `docker-compose.yml` file in the background.
+   ```bash
+   git clone <repository_url>
+   cd MAADBproject
+   ```
 
-## Waiting and Praying
+2. **Creare la Cartella dei Dati:**
+   Nella directory principale del progetto, creare una cartella denominata `data`:
 
-After starting the containers, the application will begin its setup process. **Be patient.** The MongoDB setup can take a significant amount of time to complete.
+   ```bash
+   mkdir data
+   ```
 
-## Monitoring the Setup
+3. **Copiare le Cartelle del Dataset:**
+   Copiare le cartelle `dynamic` e `static` del dataset all'interno della cartella `data` appena creata. La struttura del progetto dovrebbe apparire come segue:
 
-To monitor the progress, especially the MongoDB setup, you can periodically check the logs of the application container using the following command:
+   ```
+   MAADBproject/
+   ├── data/
+   │   ├── dynamic/
+   │   └── static/
+   ├── ... (altri file del progetto)
+   ```
+
+   In alternativa, se si preferisce non copiare le cartelle, assicurarsi che i percorsi ai dataset `dynamic` e `static` siano correttamente configurati nei file di configurazione del progetto.
+
+## Esecuzione del Progetto con Docker
+
+1. **Costruire l’Immagine Docker:**
+   Portarsi nella directory principale del progetto (dove si trova il file `docker-compose.yml`) ed eseguire:
+
+   ```bash
+   docker-compose build app
+   ```
+
+   Questo comando provvederà a costruire l’immagine Docker per il servizio dell'applicazione.
+
+2. **Avviare i Container Docker:**
+   Una volta completata la build, avviare i container in modalità detach con il seguente comando:
+
+   ```bash
+   docker-compose up -d
+   ```
+
+   Verranno avviati in background tutti i servizi definiti nel file `docker-compose.yml`.
+
+   Dopo l’avvio dei container, l’applicazione inizierà il processo di configurazione. L’inizializzazione di Neo4J può richiedere un tempo significativo.
+
+## Monitoraggio della Configurazione
+
+Per monitorare l’avanzamento della configurazione, in particolare quella di MongoDB, è possibile consultare periodicamente i log del container dell'applicazione con il comando:
 
 ```bash
 docker logs maadbproject-app-1
@@ -57,26 +71,28 @@ docker logs maadbproject-app-1
 
 ---
 
+## (Facoltativo) Ripristino dei Backup dei Volumi Docker (Windows & macOS/Linux)
 
-## 🔄 Restore Docker Volume Backups (Windows & macOS/Linux)
+Questa sezione è opzionale e necessaria solo se si desidera ripristinare i volumi dei database da file di backup precedenti.
 
-To restore the database volumes from backup, follow these steps:
+### 1. Scaricare i File di Backup
 
-### 1. 📥 Download Backup Files
-Place the following `.tar.bz2` files in a folder of your choice:
-- `mongodb_backup.tar.bz2`
-- `neo4j_backup.tar.bz2`
-- `postgres_backup.tar.bz2`
+Posizionare i seguenti file `.tar.bz2` in una cartella a scelta:
 
----
-
-### 2. 📁 Open a Terminal in That Folder
-- **Windows:** Right-click the folder and select **“Open in PowerShell”**
-- **macOS/Linux:** Open Terminal and `cd` into the folder
+* `mongodb_backup.tar.bz2`
+* `neo4j_backup.tar.bz2`
+* `postgres_backup.tar.bz2`
 
 ---
 
-### 3. 🗃️ Create Docker Volumes (if not already created)
+### 2. Aprire un Terminale in Quella Cartella
+
+* **Windows:** Fare clic con il tasto destro sulla cartella e selezionare **“Apri in PowerShell”**
+* **macOS/Linux:** Aprire il terminale ed eseguire `cd` nella cartella
+
+---
+
+### 3. Creare i Volumi Docker (se non già presenti)
 
 ```bash
 docker volume create maadbproject_mongodb_data
@@ -86,18 +102,20 @@ docker volume create maadbproject_postgres_data
 
 ---
 
-### 4. 🔧 Run Restore Commands
+### 4. Eseguire i Comandi di Ripristino
 
-> ⚠️ Use `${PWD}` in **PowerShell**, and `$(pwd)` in **macOS/Linux Terminal**
+> Utilizzare `${PWD}` in **PowerShell** e `$(pwd)` nel **Terminale macOS/Linux**
 
-#### ✅ Windows PowerShell
+#### PowerShell su Windows
+
 ```powershell
 docker run --rm -v maadbproject_mongodb_data:/volume -v ${PWD}:/backup loomchild/volume-backup restore mongodb_backup.tar.bz2
 docker run --rm -v maadbproject_neo4j_data:/volume -v ${PWD}:/backup loomchild/volume-backup restore neo4j_backup.tar.bz2
 docker run --rm -v maadbproject_postgres_data:/volume -v ${PWD}:/backup loomchild/volume-backup restore postgres_backup.tar.bz2
 ```
 
-#### ✅ macOS/Linux Terminal
+#### Terminale su macOS/Linux
+
 ```bash
 docker run --rm -v maadbproject_mongodb_data:/volume -v $(pwd):/backup loomchild/volume-backup restore mongodb_backup.tar.bz2
 docker run --rm -v maadbproject_neo4j_data:/volume -v $(pwd):/backup loomchild/volume-backup restore neo4j_backup.tar.bz2
@@ -106,41 +124,40 @@ docker run --rm -v maadbproject_postgres_data:/volume -v $(pwd):/backup loomchil
 
 ---
 
-💡 If you encounter errors about missing files, ensure the `.tar.bz2` files are in the current folder and correctly named.
-
+In caso di errore riguardante file mancanti, verificare che i file `.tar.bz2` si trovino nella cartella corrente e che i nomi siano corretti.
 
 ---
-la collection Person su mongo nel campo email ha una serie di email separate da ; come un'unica stringa, runnare email_to_array.py per trasformare il campo in un array di stringhe
+
+## Conversione del Campo Email in Array
+
+Nella collezione `Person` di MongoDB, il campo `email` può contenere una stringa unica con più indirizzi email separati da `;`. Per convertire questo campo in un array di stringhe, eseguire lo script `email_to_array.py` con il seguente comando:
+
 ```bash
 docker exec maadbproject-app-1 python /app/misch/email_to_array.py
 ```
 
 ---
 
-## 🛠️ Create Indexes Manually After Initialization
+## Creazione Manuale degli Indici dopo l’Inizializzazione
 
-After all containers are up and running and the data has been properly initialized, it's **highly recommended** to manually create a few indexes in each database engine to improve query performance, especially on large datasets.
+Dopo che tutti i container sono stati avviati e i dati inizializzati correttamente, è **fortemente consigliato** creare manualmente alcuni indici nei vari motori di database, al fine di migliorare le prestazioni delle query, in particolare su dataset di grandi dimensioni.
 
-### 🐘 PostgreSQL
+### PostgreSQL
 
-Access your PostgreSQL client or connect via container and run the following SQL commands:
+Accedere al client PostgreSQL o connettersi tramite container ed eseguire i seguenti comandi SQL:
 
 ```sql
 CREATE INDEX idx_organization_name ON organization(name);
-CREATE INDEX idx_tag_class_id ON Tag("TypeTagClassId"); -- for Matteo
-CREATE INDEX idx_place_id ON place(id); -- Added by Matteo
-CREATE INDEX idx_tagclass_name ON tagclass(name); -- Added by Matteo
+CREATE INDEX idx_tag_class_id ON Tag("TypeTagClassId"); -- per Matteo
+CREATE INDEX idx_place_id ON place(id); -- aggiunto da Matteo
+CREATE INDEX idx_tagclass_name ON tagclass(name); -- aggiunto da Matteo
 ```
 
-### 🍃 MongoDB
+### MongoDB
 
-Enter the Mongo shell (`mongosh`) from within the container:
+Accedere da Mongo Compass alla Mongo shell (`mongosh`):
 
-```bash
-docker exec -it <mongo_container_name> mongosh
-```
-
-Then execute:
+Eseguire quindi:
 
 ```javascript
 db.person.createIndex({ email: 1 }, { name: "email_index" });
@@ -149,12 +166,12 @@ db.person.createIndex({ LocationCityId: 1 }, { name: "location_city_index" });
 db.Comment.createIndex({ CreatorPersonId: 1, ParentPostId: 1 });
 ```
 
-### 🧠 Neo4j
+### Neo4j
 
-Using the Neo4j browser or `cypher-shell`, execute the following Cypher query:
+Tramite Neo4j browser o `cypher-shell`, eseguire il seguente comando Cypher:
 
 ```cypher
 CREATE INDEX works_from_date_index FOR ()-[r:WORK_AT]-() ON (r.workFrom);
 ```
 
-> 🔍 These indexes are not created automatically to preserve full control over the schema. Creating them ensures **faster response times** for the most common and critical queries used in the project.
+> Questi indici non vengono creati automaticamente per garantire il pieno controllo sullo schema. La loro creazione consente **tempi di risposta più rapidi** per le query più frequenti e rilevanti all'interno del progetto.
