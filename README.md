@@ -200,3 +200,14 @@ CREATE INDEX works_from_date_index FOR ()-[r:WORK_AT]-() ON (r.workFrom);
 > Questi indici non vengono creati automaticamente per garantire il pieno controllo sullo schema. La loro creazione consente **tempi di risposta più rapidi** per le query più frequenti e rilevanti all'interno del progetto.
 
 ---
+
+## Accesso all'UI
+
+Una volta che tutti i servizi sono stati avviati correttamente tramite `docker-compose up`, il progetto espone un'interfaccia web principale:
+    
+
+Interfaccia Utente Streamlit
+
+Come indicato nei log di avvio, l'applicazione Streamlit è accessibile tramite il browser.
+
+    URL: http://localhost:8501
