@@ -37,7 +37,7 @@ I dati utilizzati in questo progetto sono generati tramite il tool ufficiale [LD
 
 ## Esecuzione del Progetto con Docker
 
-## Configurazione del file `.env`
+### Configurazione del file `.env`
 
 Per il corretto funzionamento del progetto, creare un file `.env` nella root e includere le seguenti variabili, sostituendo **<PLACEHOLDER>** coi valori corretti in base alla vostra configurazione:
 
