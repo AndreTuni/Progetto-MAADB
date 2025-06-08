@@ -168,9 +168,9 @@ Accedere al client PostgreSQL o connettersi tramite container ed eseguire i segu
 
 ```sql
 CREATE INDEX idx_organization_name ON organization(name);
-CREATE INDEX idx_tag_class_id ON Tag("TypeTagClassId"); -- per Matteo
-CREATE INDEX idx_place_id ON place(id); -- aggiunto da Matteo
-CREATE INDEX idx_tagclass_name ON tagclass(name); -- aggiunto da Matteo
+CREATE INDEX idx_tag_class_id ON Tag("TypeTagClassId");
+CREATE INDEX idx_place_id ON place(id);
+CREATE INDEX idx_tagclass_name ON tagclass(name);
 ```
 
 ### MongoDB
